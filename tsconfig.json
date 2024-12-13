@@ -1,0 +1,24 @@
+{
+    "compilerOptions": {
+      "strict": true,
+      "module": "es6",
+      "target": "es6",
+      "esModuleInterop": true,
+      "sourceMap": true,
+      "rootDir": "src",
+      "outDir": "dist/js",
+      "noEmitOnError": true,
+      "typeRoots": ["node_modules/@types"],
+      "jsx": "react",
+      "baseUrl": ".",
+      "paths": {
+        "@/*": ["src/*"]
+      },
+      "moduleResolution": "node",
+      "forceConsistentCasingInFileNames": true,
+      "resolveJsonModule": true,
+      "isolatedModules": true
+    },
+    "include": ["src/**/*"],
+    "exclude": ["node_modules"]
+  }
