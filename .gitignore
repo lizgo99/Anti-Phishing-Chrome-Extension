@@ -3,3 +3,6 @@ dist/
 
 # Ignore node_modules folder
 node_modules/
+
+# Ignore .DS_Store
+.DS_Store
