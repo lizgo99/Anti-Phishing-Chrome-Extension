@@ -6,3 +6,12 @@ node_modules/
 
 # Ignore .DS_Store
 .DS_Store
+src/.DS_Store
+src/components/.DS_Store
+
+# Ignore .env file
+.env
+
+# Ignore config file
+src/config/config.ts
+src/test/test-config.js

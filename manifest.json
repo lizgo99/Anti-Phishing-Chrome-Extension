@@ -7,11 +7,13 @@
       "activeTab",
       "storage",
       "tabs",
-      "scripting"
+      "scripting",
+      "notifications"
     ],
     "host_permissions": [
       "http://*/*",
-      "https://*/*"
+      "https://*/*",
+      "https://safebrowsing.googleapis.com/*"
     ],
     "action": {
       "default_popup": "popup.html",
