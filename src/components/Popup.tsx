@@ -20,6 +20,8 @@ import {
 } from "@/components/ui/accordion"
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
+// import { loadModel, predict, extractFeatures } from '@/model';
+
 
 interface CheckResultData {
   url: string;
@@ -27,6 +29,8 @@ interface CheckResultData {
   threats: string[];
   lastScanned: string;
   isSecure: boolean;
+  mlPredictionScore?: number;
+  detectionSources: string[];
 }
 
 interface CheckResult {
@@ -39,6 +43,8 @@ interface ScanResult {
   lastScanned: string;
   threats: string[];
   isSecure: boolean;
+  mlPredictionScore?: number;
+  detectionSources: string[];
 }
 
 export default function Popup() {
@@ -49,6 +55,7 @@ export default function Popup() {
   const [isDarkMode, setIsDarkMode] = useState(false)
   const [scanResult, setScanResult] = useState<ScanResult | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     const initializePopup = async () => {
@@ -61,13 +68,15 @@ export default function Popup() {
           // Request latest check result from background script
           chrome.runtime.sendMessage({ type: 'GET_LATEST_RESULT' }, (response: CheckResult | null) => {
             if (response?.data) {
-              const { riskScore, threats, lastScanned, isSecure } = response.data;
+              const { riskScore, threats, lastScanned, isSecure, mlPredictionScore, detectionSources } = response.data;
               setRiskScore(riskScore);
               setScanResult({
-                riskLevel: getRiskLevel(riskScore),
+                riskLevel: getRiskLevelText(riskScore),
                 lastScanned,
                 threats,
-                isSecure
+                isSecure,
+                mlPredictionScore,
+                detectionSources
               });
               setScanning(false);
             }
@@ -84,13 +93,15 @@ export default function Popup() {
     // Set up message listener
     const messageListener = (message: CheckResult) => {
       if (message.type === 'URL_CHECK_RESULT' && message.data) {
-        const { riskScore, threats, lastScanned, isSecure } = message.data;
+        const { riskScore, threats, lastScanned, isSecure, mlPredictionScore, detectionSources } = message.data;
         setRiskScore(riskScore);
         setScanResult({
-          riskLevel: getRiskLevel(riskScore),
+          riskLevel: getRiskLevelText(riskScore),
           lastScanned,
           threats,
-          isSecure
+          isSecure,
+          mlPredictionScore,
+          detectionSources
         });
         setScanning(false);
         setError(null);
@@ -123,13 +134,15 @@ export default function Popup() {
       });
 
       if (response && response.data) {
-        const { riskScore, threats, lastScanned, isSecure } = response.data;
+        const { riskScore, threats, lastScanned, isSecure, mlPredictionScore, detectionSources } = response.data;
         setRiskScore(riskScore);
         setScanResult({
-          riskLevel: getRiskLevel(riskScore),
+          riskLevel: getRiskLevelText(riskScore),
           lastScanned: new Date(lastScanned).toLocaleString(),
           threats: threats,
-          isSecure: isSecure
+          isSecure: isSecure,
+          mlPredictionScore,
+          detectionSources
         });
       } else {
         // Handle case where response is invalid
@@ -138,7 +151,9 @@ export default function Popup() {
           riskLevel: 'Error',
           lastScanned: new Date().toLocaleString(),
           threats: ['Could not analyze URL'],
-          isSecure: false
+          isSecure: false,
+          mlPredictionScore: undefined,
+          detectionSources: []
         });
       }
     } catch (error) {
@@ -148,7 +163,9 @@ export default function Popup() {
         riskLevel: 'Error',
         lastScanned: new Date().toLocaleString(),
         threats: ['Error scanning URL'],
-        isSecure: false
+        isSecure: false,
+        mlPredictionScore: undefined,
+        detectionSources: []
       });
     } finally {
       setScanning(false);
@@ -156,9 +173,9 @@ export default function Popup() {
   };
 
   // Helper function to determine risk level text
-  const getRiskLevel = (score: number): string => {
-    if (score >= 60) return 'High Risk';
-    if (score >= 30) return 'Medium Risk';
+  const getRiskLevelText = (score: number): string => {
+    if (score >= 75) return 'High Risk';
+    if (score >= 50) return 'Medium Risk';
     return 'Low Risk';
   };
 
@@ -184,7 +201,7 @@ export default function Popup() {
           <div className={`text-4xl font-bold ${getRiskColor(riskScore)}`}>{riskScore}%</div>
           <div className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Risk Score</div>
           <div className={`text-lg font-medium ${getRiskColor(riskScore)}`}>
-            {getRiskLevel(riskScore)}
+            {getRiskLevelText(riskScore)}
           </div>
         </div>
       </div>
@@ -313,11 +330,11 @@ export default function Popup() {
             <div className="flex items-center justify-between mb-2">
               <span className={`text-sm font-medium ${colors.text}`}>INFO ABOUT SITE</span>
               <span className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                Risk Level: <span className={getRiskColor(riskScore)}>{getRiskLevel(riskScore)}</span>
+                Risk Level: <span className={getRiskColor(riskScore)}>{getRiskLevelText(riskScore)}</span>
               </span>
             </div>
             <div className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-600'} mb-2`}>
-              Last scanned: {new Date().toLocaleString()}
+              Last scanned: {new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })}
             </div>
             <Accordion type="single" collapsible className="w-full">
               <AccordionItem value="info">
@@ -325,22 +342,51 @@ export default function Popup() {
                   More Details
                 </AccordionTrigger>
                 <AccordionContent>
-                  <div className="space-y-2 text-xs">
-                    <p className="font-medium">Why was it flagged:</p>
-                    <ul className="list-disc pl-4 space-y-1">
-                      {scanResult?.threats.length ? (
-                        scanResult.threats.map((threat, index) => (
-                          <li key={index}>{threat}</li>
-                        ))
-                      ) : (
-                        <li className="text-green-500">No threats detected</li>
-                      )}
-                    </ul>
+                  <div className="space-y-4">
+                    {/* Threats List */}
+                    <div className="space-y-2">
+                      <h4 className={`font-medium ${colors.text}`}>Detected Threats:</h4>
+                      <ul className="list-disc list-inside space-y-1">
+                        {scanResult?.threats && scanResult.threats.length > 0 ? (
+                          scanResult.threats.map((threat, index) => (
+                            <li key={index} className="text-red-500">{threat}</li>
+                          ))
+                        ) : (
+                          <li className="text-green-500">No threats detected</li>
+                        )}
+                      </ul>
+                    </div>
+
+                    {/* ML Model Score */}
+                    {scanResult?.mlPredictionScore !== undefined && (
+                      <div className="space-y-1">
+                        <h4 className={`font-medium ${colors.text}`}>ML Analysis:</h4>
+                        <p className={isDarkMode ? 'text-gray-400' : 'text-gray-600'}>
+                          Prediction Score: {Math.round(scanResult.mlPredictionScore * 100)}%
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Detection Sources */}
+                    {scanResult?.detectionSources && scanResult.detectionSources.length > 0 && (
+                      <div className="space-y-1">
+                        <h4 className={`font-medium ${colors.text}`}>Detection Sources:</h4>
+                        <ul className="list-disc list-inside">
+                          {scanResult.detectionSources.map((source, index) => (
+                            <li key={index} className={isDarkMode ? 'text-gray-400' : 'text-gray-600'}>
+                              {source}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
                     <p className={`italic ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
                       {scanResult?.isSecure 
                         ? 'This site appears to be safe based on our security checks.'
                         : 'Exercise caution when interacting with this site.'}
                     </p>
+                    
                     <Button
                       variant="outline"
                       size="sm"

@@ -5,12 +5,24 @@
  * suspicious site detection, and communication with the popup interface.
  */
 
+import * as tf from '@tensorflow/tfjs';
 import {config, APP_CONFIG} from '@/config/config';
+import { loadModel, extractFeatures, predict } from '@/model';
 
 // Event listener that runs when the extension is first installed
-chrome.runtime.onInstalled.addListener(() => {
+chrome.runtime.onInstalled.addListener(async () => {
     console.log('Anti-Phishing Extension installed')
     
+    // Wait for TensorFlow.js to be ready
+    await tf.ready();
+    console.log('TensorFlow.js initialized');
+    
+    // Load the ML model
+    try {
+      await loadModel();
+    } catch (error) {
+      console.error('Error loading model:', error);
+    }
     // Set up the extension icon in different sizes for various contexts
     chrome.action.setIcon({
       path: {
@@ -19,7 +31,7 @@ chrome.runtime.onInstalled.addListener(() => {
         "128": "icon128.png" // Icon for Chrome Web Store
       }
     });
-  
+
     // Make sure the extension icon is clickable in the toolbar
     chrome.action.enable();
 })
@@ -67,12 +79,17 @@ interface CheckResultData {
   threats: string[];
   lastScanned: string;
   isSecure: boolean;
+  mlPredictionScore?: number;  // ML model's prediction score
+  detectionSources: string[]; // Sources that contributed to detection
 }
 
 interface CheckResult {
   type: 'URL_CHECK_RESULT';
   data: CheckResultData;
 }
+
+// Store the latest check result
+let latestCheckResult: CheckResult | null = null;
 
 // Function to safely send messages to popup
 const sendMessageToPopup = async (message: CheckResult) => {
@@ -91,24 +108,63 @@ const sendMessageToPopup = async (message: CheckResult) => {
   }
 };
 
-// Store the latest check result
-let latestCheckResult: CheckResult | null = null;
+// Function to get page information (title and hyperlinks)
+async function getPageInfo(tabId: number): Promise<{title: string, hyperlinks: string[]}> {
+  try {
+    const [results] = await chrome.scripting.executeScript({
+      target: { tabId },
+      func: () => {
+        // Get all hyperlinks from the page
+        const links = Array.from(document.getElementsByTagName('a'))
+          .map(a => a.href)
+          .filter(href => href && href.startsWith('http')); // Only keep valid http(s) URLs
+
+        return {
+          title: document.title,
+          hyperlinks: links
+        };
+      }
+    });
+
+    return results.result;
+  } catch (error) {
+    console.error('Error getting page info:', error);
+    return {
+      title: '',
+      hyperlinks: []
+    };
+  }
+}
 
 // Function to check URL and update UI
 async function checkUrl(url: string, tabId?: number) {
   try {
+    // Skip chrome:// URLs
+    if (url.startsWith('chrome://')) {
+      console.log('Skipping chrome:// URL:', url);
+      return;
+    }
+
     // Parse the URL for analysis
     const parsedUrl = new URL(url);
 
-    // Define patterns that are commonly associated with phishing attempts
-    const suspiciousPatterns = [
-      /^[0-9]+\./,  // URLs that start with IP addresses instead of domain names
-      /\.(tk|ml|ga|cf|gq)$/,  // Free domain TLDs often abused by phishers
-      /^https?:\/\/[^/]+\.[^/]+\/[^/]+\.[^/]+$/  // Complex URL patterns that might indicate phishing
-    ];
+    // Get page info if we have a valid tab ID
+    let pageInfo: { title: string, hyperlinks: string[] } = { title: '', hyperlinks: [] as string[] };
+    if (tabId && tabId > 0) {
+      pageInfo = await getPageInfo(tabId);
+    }
 
-    // Check if the URL matches any suspicious patterns
-    let isSuspicious = suspiciousPatterns.some(pattern => pattern.test(parsedUrl.hostname));
+    // Extract features for ML model
+    const features = extractFeatures({
+      url: url,
+      hostname: parsedUrl.hostname,
+      path: parsedUrl.pathname,
+      title: pageInfo.title,
+      hyperlinks: pageInfo.hyperlinks
+    });
+
+    // Get ML model prediction
+    const mlPredictionScore = await predict(features);
     
     // Check URL with Google Safe Browsing API
     const isUnsafe = await checkUrlWithSafeBrowsing(url);
@@ -116,16 +172,29 @@ async function checkUrl(url: string, tabId?: number) {
     // Calculate risk score and prepare threat info
     let riskScore = 0;
     const threats = [];
+    const detectionSources = [];
     
-    if (isSuspicious) {
-      riskScore += 40;
-      threats.push('Suspicious URL pattern detected');
-    }
+    // // Add ML model contribution
+    // if (mlPredictionScore > 0.5) {
+    //   const mlContribution = Math.round((mlPredictionScore - 0.5) * 100);
+    //   riskScore += mlContribution;
+    //   threats.push(`ML Model detected suspicious patterns (${Math.round(mlPredictionScore * 100)}% confidence)`);
+    //   detectionSources.push('Machine Learning Model');
+    // }
+
+    riskScore += Math.round(mlPredictionScore * 100);
+    threats.push(`ML Model detected suspicious patterns (${Math.round(mlPredictionScore * 100)}% confidence)`);
+    detectionSources.push('Machine Learning Model');
     
+    // Add Safe Browsing contribution
     if (isUnsafe) {
       riskScore += 60;
       threats.push('Flagged by Google Safe Browsing');
+      detectionSources.push('Google Safe Browsing');
     }
+
+    // Normalize risk score to be between 0 and 100
+    riskScore = Math.min(100, riskScore);
 
     // Create the check result
     const checkResult: CheckResult = {
@@ -135,14 +204,16 @@ async function checkUrl(url: string, tabId?: number) {
         riskScore,
         threats,
         lastScanned: new Date().toISOString(),
-        isSecure: !isUnsafe && !isSuspicious
+        isSecure: riskScore < 40,
+        mlPredictionScore,
+        detectionSources
       }
     };
 
     // Update badge only if we have a valid tab ID
     if (tabId && tabId > 0) {
       try {
-        if (isSuspicious || isUnsafe) {
+        if (riskScore > 90) {
           await chrome.action.setBadgeText({ text: '!', tabId });
           await chrome.action.setBadgeBackgroundColor({ color: '#FF0000', tabId });
         } else {
@@ -158,12 +229,12 @@ async function checkUrl(url: string, tabId?: number) {
     await sendMessageToPopup(checkResult);
     
     // Show notification for unsafe sites
-    if (isUnsafe) {
+    if (riskScore > 75) {
       chrome.notifications.create({
         type: 'basic',
         iconUrl: 'icon128.png',
         title: 'Warning: Potentially Unsafe Website',
-        message: 'This website has been flagged as potentially dangerous by Google Safe Browsing.'
+        message: 'This website has been flagged as potentially dangerous by our extension.'
       });
     }
 
@@ -177,7 +248,8 @@ async function checkUrl(url: string, tabId?: number) {
         riskScore: 0,
         threats: ['Error checking URL: ' + (error as Error).message],
         lastScanned: new Date().toISOString(),
-        isSecure: false
+        isSecure: false,
+        detectionSources: []
       }
     };
   }
@@ -233,7 +305,8 @@ chrome.runtime.onMessage.addListener((
             riskScore: 0,
             threats: ['Error checking URL: ' + error.message],
             lastScanned: new Date().toISOString(),
-            isSecure: false
+            isSecure: false,
+            detectionSources: []
           }
         });
       });

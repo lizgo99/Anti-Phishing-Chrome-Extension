@@ -1,45 +1,55 @@
 {
-    "manifest_version": 3,
-    "name": "PhishGuard",
-    "version": "1.0",
-    "description": "An advanced anti-phishing Chrome extension",
-    "permissions": [
-      "activeTab",
-      "storage",
-      "tabs",
-      "scripting",
-      "notifications"
-    ],
-    "host_permissions": [
-      "http://*/*",
-      "https://*/*",
-      "https://safebrowsing.googleapis.com/*"
-    ],
-    "action": {
-      "default_popup": "popup.html",
-      "default_icon": {
-        "16": "icon16.png",
-        "48": "icon48.png",
-        "128": "icon128.png"
-      },
-      "default_title": "PhishGuard - Protect yourself from phishing"
-    },
-    "icons": {
+  "manifest_version": 3,
+  "name": "PhishGuard",
+  "version": "1.0",
+  "description": "An advanced anti-phishing Chrome extension",
+  "permissions": [
+    "activeTab",
+    "storage",
+    "tabs",
+    "scripting",
+    "notifications",
+    "webRequest"
+  ],
+  "host_permissions": [
+    "http://*/*",
+    "https://*/*",
+    "https://safebrowsing.googleapis.com/*"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
       "16": "icon16.png",
       "48": "icon48.png",
       "128": "icon128.png"
     },
-    "background": {
-      "service_worker": "background.bundle.js",
-      "type": "module"
-    },
-    "content_scripts": [
-      {
-        "matches": ["<all_urls>"],
-        "js": ["content.bundle.js"]
-      }
-    ],
-    "content_security_policy": {
-      "extension_pages": "script-src 'self'; object-src 'self'"
+    "default_title": "PhishGuard - Protect yourself from phishing"
+  },
+  "icons": {
+    "16": "icon16.png",
+    "48": "icon48.png",
+    "128": "icon128.png"
+  },
+  "background": {
+    "service_worker": "background.bundle.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.bundle.js"]
     }
+  ],
+  "web_accessible_resources": [{
+    "resources": [
+      "model/*",
+      "icon16.png",
+      "icon48.png",
+      "icon128.png"
+    ],
+    "matches": ["<all_urls>"]
+  }],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'"
+  }
 }
