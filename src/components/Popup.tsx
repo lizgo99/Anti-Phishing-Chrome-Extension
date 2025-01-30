@@ -31,6 +31,8 @@ interface CheckResultData {
   isSecure: boolean;
   mlPredictionScore?: number;
   detectionSources: string[];
+  significantFeatures?: { [key: string]: number };
+  featureDescriptions?: { [key: string]: string };
 }
 
 interface CheckResult {
@@ -45,6 +47,8 @@ interface ScanResult {
   isSecure: boolean;
   mlPredictionScore?: number;
   detectionSources: string[];
+  significantFeatures?: { [key: string]: number };
+  featureDescriptions?: { [key: string]: string };
 }
 
 export default function Popup() {
@@ -52,14 +56,26 @@ export default function Popup() {
   const [url, setUrl] = useState("")
   const [scanning, setScanning] = useState(false)
   const [riskScore, setRiskScore] = useState(0)
-  const [isDarkMode, setIsDarkMode] = useState(false)
+  const [isDarkMode, setIsDarkMode] = useState(() => {
+    // Try to get the stored theme preference synchronously
+    const storedTheme = localStorage.getItem('isDarkMode');
+    return storedTheme ? JSON.parse(storedTheme) : false;
+  })
   const [scanResult, setScanResult] = useState<ScanResult | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false);
+  const [showInfoBox, setShowInfoBox] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
 
   useEffect(() => {
     const initializePopup = async () => {
       try {
+        // Load theme preference from storage and sync with localStorage
+        const result = await chrome.storage.sync.get('isDarkMode');
+        const syncedTheme = result.isDarkMode ?? false;
+        setIsDarkMode(syncedTheme);
+        localStorage.setItem('isDarkMode', JSON.stringify(syncedTheme));
+
         // Get current tab URL
         const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
         if (tabs[0]?.url) {
@@ -68,7 +84,7 @@ export default function Popup() {
           // Request latest check result from background script
           chrome.runtime.sendMessage({ type: 'GET_LATEST_RESULT' }, (response: CheckResult | null) => {
             if (response?.data) {
-              const { riskScore, threats, lastScanned, isSecure, mlPredictionScore, detectionSources } = response.data;
+              const { riskScore, threats, lastScanned, isSecure, mlPredictionScore, detectionSources, significantFeatures, featureDescriptions } = response.data;
               setRiskScore(riskScore);
               setScanResult({
                 riskLevel: getRiskLevelText(riskScore),
@@ -76,7 +92,9 @@ export default function Popup() {
                 threats,
                 isSecure,
                 mlPredictionScore,
-                detectionSources
+                detectionSources,
+                significantFeatures,
+                featureDescriptions
               });
               setScanning(false);
             }
@@ -93,7 +111,7 @@ export default function Popup() {
     // Set up message listener
     const messageListener = (message: CheckResult) => {
       if (message.type === 'URL_CHECK_RESULT' && message.data) {
-        const { riskScore, threats, lastScanned, isSecure, mlPredictionScore, detectionSources } = message.data;
+        const { riskScore, threats, lastScanned, isSecure, mlPredictionScore, detectionSources, significantFeatures, featureDescriptions } = message.data;
         setRiskScore(riskScore);
         setScanResult({
           riskLevel: getRiskLevelText(riskScore),
@@ -101,7 +119,9 @@ export default function Popup() {
           threats,
           isSecure,
           mlPredictionScore,
-          detectionSources
+          detectionSources,
+          significantFeatures,
+          featureDescriptions
         });
         setScanning(false);
         setError(null);
@@ -133,8 +153,11 @@ export default function Popup() {
         url: url
       });
 
+      console.log('Response from Popup:', response);
+      console.log('URL from Popup:', url)
+
       if (response && response.data) {
-        const { riskScore, threats, lastScanned, isSecure, mlPredictionScore, detectionSources } = response.data;
+        const { riskScore, threats, lastScanned, isSecure, mlPredictionScore, detectionSources, significantFeatures, featureDescriptions } = response.data;
         setRiskScore(riskScore);
         setScanResult({
           riskLevel: getRiskLevelText(riskScore),
@@ -142,7 +165,9 @@ export default function Popup() {
           threats: threats,
           isSecure: isSecure,
           mlPredictionScore,
-          detectionSources
+          detectionSources,
+          significantFeatures,
+          featureDescriptions
         });
       } else {
         // Handle case where response is invalid
@@ -153,7 +178,9 @@ export default function Popup() {
           threats: ['Could not analyze URL'],
           isSecure: false,
           mlPredictionScore: undefined,
-          detectionSources: []
+          detectionSources: [],
+          significantFeatures: undefined,
+          featureDescriptions: undefined
         });
       }
     } catch (error) {
@@ -165,7 +192,9 @@ export default function Popup() {
         threats: ['Error scanning URL'],
         isSecure: false,
         mlPredictionScore: undefined,
-        detectionSources: []
+        detectionSources: [],
+        significantFeatures: undefined,
+        featureDescriptions: undefined
       });
     } finally {
       setScanning(false);
@@ -220,22 +249,38 @@ export default function Popup() {
   const getThemeColors = () => {
     return isDarkMode
       ? {
+          // bg: 'bg-[#29104A]',
           bg: 'bg-gray-900',
-          text: 'text-white',
-          border: 'border-purple-600',
-          button: 'bg-purple-600 hover:bg-purple-700',
-          buttonText: 'text-white',
+          // text: 'text-white',
+          // text: 'text-[#FFE3D8]',
+          text: 'text-[#CCBDD6]',
+          // border: 'border-purple-600',
+          border: 'border-[#522C5D]',
+          // button: 'bg-purple-600 hover:bg-purple-700',
+          button: 'bg-[#522C5D] hover:bg-[#522C5D]',
+          // buttonText: 'text-white',
+          // buttonText: 'text-[#FFE3D8]',
+          buttonText: 'text-[#CCBDD6]',
         }
       : {
-          bg: 'bg-green-50',
-          text: 'text-gray-900',
-          border: 'border-green-600',
-          button: 'bg-green-600 hover:bg-green-700',
-          buttonText: 'text-white',
+          bg: 'bg-[#F5FAFF]',
+          text: 'text-[#2E4156]',
+          border: 'border-[#2E4156]',
+          button: 'bg-[#2E4156] hover:bg-[#2E4156]',
+          buttonText: 'text-[#AAB7B7]',
         }
   }
 
   const colors = getThemeColors()
+
+  // Handle theme toggle
+  const handleThemeToggle = () => {
+    const newTheme = !isDarkMode;
+    setIsDarkMode(newTheme);
+    // Save theme preference to both storage and localStorage
+    chrome.storage.sync.set({ isDarkMode: newTheme });
+    localStorage.setItem('isDarkMode', JSON.stringify(newTheme));
+  };
 
   return (
     // Main container with dynamic theme colors
@@ -252,7 +297,7 @@ export default function Popup() {
               onChange={(e) => setUrl(e.target.value)}
               onKeyPress={handleKeyPress}
               className={`w-full rounded-l-full rounded-r-full pr-24 ${colors.border} ${
-                isDarkMode ? 'bg-gray-800 text-white' : 'bg-white text-gray-900'
+                isDarkMode ? 'bg-gray-800 text-[#CCBDD6]' : 'bg-white text-gray-900'
               } placeholder-gray-400`}
             />
             {/* Scan button */}
@@ -262,8 +307,8 @@ export default function Popup() {
               disabled={scanning}
               className={`absolute right-1 top-1/2 -translate-y-1/2 h-[calc(100%-8px)] min-w-[80px] px-3 rounded-full transition-colors duration-200 ${
                 isDarkMode
-                  ? 'text-purple-400 hover:text-purple-300 hover:bg-gray-700/50'
-                  : 'text-green-600 hover:text-green-700 hover:bg-green-100/50'
+                  ? 'text-[#CCBDD6] hover:text-[#CCBDD6] hover:bg-[#522C5D]/50'
+                  : 'text-[#2E4156] hover:text-[#2E4156] hover:bg-[#AAB7B7]/20'
               }`}
             >
               <span className="whitespace-nowrap">{scanning ? 'Scanning...' : 'Scan'}</span>
@@ -275,8 +320,8 @@ export default function Popup() {
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => setIsDarkMode(!isDarkMode)}
-              className={`rounded-full p-2 transition-colors duration-200 ${isDarkMode ? 'text-purple-400 hover:text-purple-300 hover:bg-gray-800' : 'text-green-600 hover:text-green-700 hover:bg-green-100'}`}
+              onClick={handleThemeToggle}
+              className={`rounded-full p-2 transition-colors duration-200 ${isDarkMode ? 'text-[#CCBDD6] hover:text-[#CCBDD6] hover:bg-[#522C5D]/50' : 'text-[#2E4156] hover:text-[#2E4156] hover:bg-[#AAB7B7]/20'}`}
             >
               {isDarkMode ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
             </Button>
@@ -284,7 +329,8 @@ export default function Popup() {
             <Button
               variant="ghost"
               size="sm"
-              className={`rounded-full p-2 transition-colors duration-200 ${isDarkMode ? 'text-purple-400 hover:text-purple-300 hover:bg-gray-800' : 'text-green-600 hover:text-green-700 hover:bg-green-100'}`}
+              onClick={() => setShowSettings(!showSettings)}
+              className={`rounded-full p-2 transition-colors duration-200 ${isDarkMode ? 'text-[#CCBDD6] hover:text-[#CCBDD6] hover:bg-[#522C5D]/50' : 'text-[#2E4156] hover:text-[#2E4156] hover:bg-[#AAB7B7]/20'}`}
             >
               <Settings className="h-5 w-5" />
             </Button>
@@ -300,127 +346,138 @@ export default function Popup() {
             {/* Declare as safe button */}
             <Button
               variant="ghost"
-              className={`flex items-center space-x-2 ${isDarkMode ? 'hover:bg-gray-800' : 'hover:bg-green-100'} transition-colors duration-200 rounded-lg py-1.5 px-2 w-full justify-start`}
+              className={`flex items-center space-x-2 ${isDarkMode ? 'hover:bg-[#522C5D]/30' : 'hover:bg-[#AAB7B7]/20'} transition-colors duration-200 rounded-lg py-1.5 px-2 w-full justify-start`}
             >
-              <Shield className={`h-6 w-6 ${isDarkMode ? 'text-purple-400' : 'text-green-600'} flex-shrink-0`} />
+              <Shield className={`h-6 w-6 ${isDarkMode ? 'text-[#CCBDD6]' : 'text-[#2E4156]'} flex-shrink-0`} />
               <span className={`text-sm ${colors.text} font-medium`}>Declare As Safe</span>
             </Button>
             {/* Info about site button */}
             <Button
               variant="ghost"
-              className={`flex items-center space-x-2 ${isDarkMode ? 'hover:bg-gray-800' : 'hover:bg-green-100'} transition-colors duration-200 rounded-lg py-1.5 px-2 w-full justify-start`}
+              onClick={() => setShowInfoBox(!showInfoBox)}
+              className={`flex items-center space-x-2 ${isDarkMode ? 'hover:bg-[#522C5D]/30' : 'hover:bg-[#AAB7B7]/20'} transition-colors duration-200 rounded-lg py-1.5 px-2 w-full justify-start`}
             >
-              <Info className={`h-6 w-6 ${isDarkMode ? 'text-purple-400' : 'text-green-600'} flex-shrink-0`} />
+              <Info className={`h-6 w-6 ${isDarkMode ? 'text-[#CCBDD6]' : 'text-[#2E4156]'} flex-shrink-0`} />
               <span className={`text-sm ${colors.text} font-medium`}>Info About Site</span>
             </Button>
             {/* Learn about phishing button */}
             <Button
               variant="ghost"
-              className={`flex items-center space-x-2 ${isDarkMode ? 'hover:bg-gray-800' : 'hover:bg-green-100'} transition-colors duration-200 rounded-lg py-1.5 px-2 w-full justify-start`}
+              className={`flex items-center space-x-2 ${isDarkMode ? 'hover:bg-[#522C5D]/30' : 'hover:bg-[#AAB7B7]/20'} transition-colors duration-200 rounded-lg py-1.5 px-2 w-full justify-start`}
             >
-              <ExternalLink className={`h-6 w-6 ${isDarkMode ? 'text-purple-400' : 'text-green-600'} flex-shrink-0`} />
+              <ExternalLink className={`h-6 w-6 ${isDarkMode ? 'text-[#CCBDD6]' : 'text-[#2E4156]'} flex-shrink-0`} />
               <span className={`text-sm ${colors.text} font-medium whitespace-nowrap`}>Learn about Phishing</span>
             </Button>
           </div>
         </div>
 
         {/* Info About Site */}
-        <Card className={`shadow-md ${colors.border} ${isDarkMode ? 'bg-gray-800' : 'bg-white'}`}>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between mb-2">
-              <span className={`text-sm font-medium ${colors.text}`}>INFO ABOUT SITE</span>
-              <span className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                Risk Level: <span className={getRiskColor(riskScore)}>{getRiskLevelText(riskScore)}</span>
-              </span>
-            </div>
-            <div className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-600'} mb-2`}>
-              Last scanned: {new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })}
-            </div>
-            <Accordion type="single" collapsible className="w-full">
-              <AccordionItem value="info">
-                <AccordionTrigger className={`text-sm ${colors.text}`}>
-                  More Details
-                </AccordionTrigger>
-                <AccordionContent>
-                  <div className="space-y-4">
-                    {/* Threats List */}
-                    <div className="space-y-2">
-                      <h4 className={`font-medium ${colors.text}`}>Detected Threats:</h4>
-                      <ul className="list-disc list-inside space-y-1">
-                        {scanResult?.threats && scanResult.threats.length > 0 ? (
-                          scanResult.threats.map((threat, index) => (
-                            <li key={index} className="text-red-500">{threat}</li>
-                          ))
-                        ) : (
-                          <li className="text-green-500">No threats detected</li>
-                        )}
-                      </ul>
-                    </div>
-
-                    {/* ML Model Score */}
-                    {scanResult?.mlPredictionScore !== undefined && (
-                      <div className="space-y-1">
-                        <h4 className={`font-medium ${colors.text}`}>ML Analysis:</h4>
-                        <p className={isDarkMode ? 'text-gray-400' : 'text-gray-600'}>
-                          Prediction Score: {Math.round(scanResult.mlPredictionScore * 100)}%
-                        </p>
-                      </div>
-                    )}
-
-                    {/* Detection Sources */}
-                    {scanResult?.detectionSources && scanResult.detectionSources.length > 0 && (
-                      <div className="space-y-1">
-                        <h4 className={`font-medium ${colors.text}`}>Detection Sources:</h4>
-                        <ul className="list-disc list-inside">
-                          {scanResult.detectionSources.map((source, index) => (
-                            <li key={index} className={isDarkMode ? 'text-gray-400' : 'text-gray-600'}>
-                              {source}
-                            </li>
-                          ))}
+        {showInfoBox && (
+          <Card className={`shadow-md ${colors.border} ${isDarkMode ? 'bg-gray-800' : 'bg-white'}`}>
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between mb-2">
+                <span className={`text-sm font-medium ${colors.text}`}>INFO ABOUT SITE</span>
+                <span className={`text-sm ${isDarkMode ? 'text-[#CCBDD6]' : 'text-gray-600'}`}>
+                  Risk Level: <span className={getRiskColor(riskScore)}>{getRiskLevelText(riskScore)}</span>
+                </span>
+              </div>
+              <div className={`text-xs ${isDarkMode ? 'text-[#CCBDD6]' : 'text-gray-600'} mb-2`}>
+                Last scanned: {new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+              </div>
+              <Accordion type="single" collapsible className="w-full">
+                <AccordionItem value="info">
+                  <AccordionTrigger className={`text-sm ${colors.text}`}>
+                    More Details
+                  </AccordionTrigger>
+                  <AccordionContent>
+                    <div className="space-y-4">
+                      {/* Threats List
+                      <div className="space-y-2">
+                        <h4 className={`font-medium ${colors.text}`}>Detected Threats:</h4>
+                        <ul className="list-disc list-inside space-y-1">
+                          {scanResult?.threats && scanResult.threats.length > 0 ? (
+                            scanResult.threats.map((threat, index) => (
+                              <li key={index} className="text-red-500">{threat}</li>
+                            ))
+                          ) : (
+                            <li className="text-green-500">No threats detected</li>
+                          )}
                         </ul>
-                      </div>
-                    )}
+                      </div> */}
 
-                    <p className={`italic ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                      {scanResult?.isSecure 
-                        ? 'This site appears to be safe based on our security checks.'
-                        : 'Exercise caution when interacting with this site.'}
-                    </p>
-                    
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className={`w-full text-xs ${colors.border} ${isDarkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-50'} transition-colors duration-200`}
-                    >
-                      Configuration options
-                    </Button>
-                  </div>
-                </AccordionContent>
-              </AccordionItem>
-            </Accordion>
-          </CardContent>
-        </Card>
+                      {/* ML Model Score and Features */}
+                      {scanResult?.mlPredictionScore !== undefined && (
+                        <div className="space-y-2">
+                          <h4 className={`font-medium ${colors.text}`}>ML Analysis:</h4>
+                          <p className={isDarkMode ? 'text-gray-400' : 'text-gray-600'}>
+                            Prediction Score: {Math.round(scanResult.mlPredictionScore * 100)}%
+                          </p>
+                          
+                          {/* Show significant features for medium/high risk */}
+                          {scanResult.significantFeatures && Object.keys(scanResult.significantFeatures).length > 0 && (
+                            <div className="mt-2">
+                              <h5 className={`text-sm font-medium ${colors.text} mb-1`}>Suspicious Features Detected:</h5>
+                              <ul className="list-disc list-inside space-y-1">
+                                {Object.entries(scanResult.significantFeatures).map(([feature, value]) => (
+                                  <li key={feature} className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                                    {scanResult.featureDescriptions?.[feature] || feature}: {typeof value === 'number' && !Number.isInteger(value) ? value.toFixed(2) : value}
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Detection Sources
+                      {scanResult?.detectionSources && scanResult.detectionSources.length > 0 && (
+                        <div className="space-y-1">
+                          <h4 className={`font-medium ${colors.text}`}>Detection Sources:</h4>
+                          <ul className="list-disc list-inside">
+                            {scanResult.detectionSources.map((source, index) => (
+                              <li key={index} className={isDarkMode ? 'text-gray-400' : 'text-gray-600'}>
+                                {source}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )} */}
+
+                      {/* <p className={`italic ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                        {scanResult?.isSecure 
+                          ? 'This site appears to be safe based on our security checks.'
+                          : 'Exercise caution when interacting with this site.'}
+                      </p> */}
+                    </div>
+                  </AccordionContent>
+                </AccordionItem>
+              </Accordion>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Settings */}
-        <Card className={`shadow-md ${colors.border} ${isDarkMode ? 'bg-gray-800' : 'bg-white'}`}>
-          <CardContent className="p-4">
-            <h3 className={`text-lg font-semibold mb-4 ${colors.text}`}>Settings</h3>
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="auto-scan" className={`${colors.text}`}>Auto-scan new sites</Label>
-                <Switch id="auto-scan" />
+        {showSettings && (
+          <Card className={`shadow-md ${colors.border} ${isDarkMode ? 'bg-gray-800' : 'bg-white'}`}>
+            <CardContent className="p-4">
+              <h3 className={`text-lg font-semibold mb-4 ${colors.text}`}>Settings</h3>
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="auto-scan" className={`${colors.text}`}>Auto-scan new sites</Label>
+                  <Switch id="auto-scan" />
+                </div>
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="notifications" className={`${colors.text}`}>Enable notifications</Label>
+                  <Switch id="notifications" />
+                </div>
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="data-collection" className={`${colors.text}`}>Allow anonymous data collection</Label>
+                  <Switch id="data-collection" />
+                </div>
               </div>
-              <div className="flex items-center justify-between">
-                <Label htmlFor="notifications" className={`${colors.text}`}>Enable notifications</Label>
-                <Switch id="notifications" />
-              </div>
-              <div className="flex items-center justify-between">
-                <Label htmlFor="data-collection" className={`${colors.text}`}>Allow anonymous data collection</Label>
-                <Switch id="data-collection" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        )}
       </div>
     </div>
   )

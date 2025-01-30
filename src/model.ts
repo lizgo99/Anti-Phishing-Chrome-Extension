@@ -10,12 +10,12 @@ export async function loadModel() {
   if (!model) {
     try {
       // Load the pre-trained model
-      // model = await tf.loadLayersModel('https://lizgo99.github.io/my-tfjs-model/model/model.json');
-      model = await tf.loadLayersModel('model/model.json');
+      model = await tf.loadLayersModel('https://lizgo99.github.io/my-tfjs-model/model/model.json');
+      // model = await tf.loadLayersModel('model/model.json');
       
       // Load the scaler parameters
-      // const response = await fetch('https://lizgo99.github.io/my-tfjs-model/model/scaler.json');
-      const response = await fetch('model/scaler.json');
+      const response = await fetch('https://lizgo99.github.io/my-tfjs-model/model/scaler.json');
+      // const response = await fetch('model/scaler.json');
       scaler = await response.json();
       
       console.log('Model and scaler loaded successfully');
@@ -47,6 +47,30 @@ interface URLFeatures {
   title?: string;
   hyperlinks?: string[];
 }
+
+// Feature descriptions for the ML model
+export const featureDescriptions: { [key: string]: string } = {
+  length_url: "URL length",
+  length_hostname: "Domain name length",
+  ip: "IP address used instead of domain name",
+  nb_dots: "Number of dots in URL",
+  nb_qm: "Number of question marks",
+  nb_eq: "Number of equal signs",
+  nb_slash: "Number of forward slashes",
+  nb_www: "Number of 'www' substrings",
+  ratio_digits_url: "Ratio of digits in URL",
+  ratio_digits_host: "Ratio of digits in hostname",
+  tld_in_subdomain: "TLD appears in subdomain",
+  prefix_suffix: "Presence of prefix/suffix separator (-)",
+  shortest_word_host: "Length of shortest word in hostname",
+  longest_words_raw: "Length of longest word in URL",
+  longest_word_path: "Length of longest word in path",
+  phish_hints: "Number of phishing-related keywords",
+  nb_hyperlinks: "Number of hyperlinks",
+  ratio_intHyperlinks: "Ratio of internal hyperlinks",
+  empty_title: "Empty or missing page title",
+  domain_in_title: "Domain name present in page title"
+};
 
 /**
  * Extract features from a URL and related information for phishing detection
@@ -127,6 +151,42 @@ export function extractFeatures(urlData: URLFeatures): number[] {
     empty_title,
     domain_in_title
   ];
+}
+
+/**
+ * Get features that have significant values
+ * @param features - Array of feature values
+ * @returns Object mapping feature names to their values for significant features
+ */
+export function getSignificantFeatures(features: number[]): { [key: string]: number } {
+  const featureNames = [
+    'length_url', 'length_hostname', 'ip', 'nb_dots', 'nb_qm', 'nb_eq', 'nb_slash',
+    'nb_www', 'ratio_digits_url', 'ratio_digits_host', 'tld_in_subdomain',
+    'prefix_suffix', 'shortest_word_host', 'longest_words_raw', 'longest_word_path',
+    'phish_hints', 'nb_hyperlinks', 'ratio_intHyperlinks', 'empty_title', 'domain_in_title'
+  ];
+
+  const significantFeatures: { [key: string]: number } = {};
+  features.forEach((value, index) => {
+    // For binary features (0/1), include if 1
+    // For ratio features, include if > 0.3
+    // For count features, include if > 0
+    const featureName = featureNames[index];
+    if (
+      (featureName.startsWith('ratio_') && value > 0.3) ||
+      (featureName === 'ip' && value === 1) ||
+      (featureName === 'tld_in_subdomain' && value === 1) ||
+      (featureName === 'prefix_suffix' && value === 1) ||
+      (featureName === 'empty_title' && value === 1) ||
+      (featureName === 'domain_in_title' && value === 0) || // Note: absence is suspicious
+      (value > 0 && !featureName.startsWith('ratio_') && 
+       !['ip', 'tld_in_subdomain', 'prefix_suffix', 'empty_title', 'domain_in_title'].includes(featureName))
+    ) {
+      significantFeatures[featureName] = value;
+    }
+  });
+  
+  return significantFeatures;
 }
 
 /**

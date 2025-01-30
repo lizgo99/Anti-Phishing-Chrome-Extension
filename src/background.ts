@@ -7,7 +7,17 @@
 
 import * as tf from '@tensorflow/tfjs';
 import {config, APP_CONFIG} from '@/config/config';
-import { loadModel, extractFeatures, predict } from '@/model';
+import { loadModel, extractFeatures, predict, getSignificantFeatures, featureDescriptions } from '@/model';
+
+const setIconColor = (color: string) => {
+  chrome.action.setIcon({
+    path: {
+      "16": `${color}/${color}_icon_16.png`,
+      "48": `${color}/${color}_icon_48.png`,
+      "128": `${color}/${color}_icon_128.png`
+    }
+  });
+};
 
 // Event listener that runs when the extension is first installed
 chrome.runtime.onInstalled.addListener(async () => {
@@ -23,16 +33,9 @@ chrome.runtime.onInstalled.addListener(async () => {
     } catch (error) {
       console.error('Error loading model:', error);
     }
-    // Set up the extension icon in different sizes for various contexts
-    chrome.action.setIcon({
-      path: {
-        "16": "icon16.png",  // Icon for favicon size
-        "48": "icon48.png",  // Icon for extension menu
-        "128": "icon128.png" // Icon for Chrome Web Store
-      }
-    });
+    
+    setIconColor('blue');
 
-    // Make sure the extension icon is clickable in the toolbar
     chrome.action.enable();
 })
 
@@ -79,8 +82,10 @@ interface CheckResultData {
   threats: string[];
   lastScanned: string;
   isSecure: boolean;
-  mlPredictionScore?: number;  // ML model's prediction score
-  detectionSources: string[]; // Sources that contributed to detection
+  mlPredictionScore?: number;
+  detectionSources: string[];
+  significantFeatures?: { [key: string]: number };
+  featureDescriptions?: { [key: string]: string };
 }
 
 interface CheckResult {
@@ -141,50 +146,51 @@ async function checkUrl(url: string, tabId?: number) {
   try {
     // Skip chrome:// URLs
     if (url.startsWith('chrome://')) {
+      setIconColor('green');
       console.log('Skipping chrome:// URL:', url);
       return;
     }
 
-    // Parse the URL for analysis
-    const parsedUrl = new URL(url);
-
     // Get page info if we have a valid tab ID
-    let pageInfo: { title: string, hyperlinks: string[] } = { title: '', hyperlinks: [] as string[] };
+    let pageInfo: { title: string, hyperlinks: string[] } = { title: '', hyperlinks: [] };
     if (tabId && tabId > 0) {
-      pageInfo = await getPageInfo(tabId);
+      try {
+        pageInfo = await getPageInfo(tabId);
+      } catch (error) {
+        console.warn('Could not get page info:', error);
+        // Continue with empty page info
+      }
     }
 
     // Extract features for ML model
-    const features = extractFeatures({
+    const urlData = {
       url: url,
-      hostname: parsedUrl.hostname,
-      path: parsedUrl.pathname,
-      title: pageInfo.title,
-      hyperlinks: pageInfo.hyperlinks
-    });
-
-    // Get ML model prediction
-    const mlPredictionScore = await predict(features);
+      hostname: new URL(url).hostname,
+      path: new URL(url).pathname,
+      title: pageInfo?.title || '',  // Use optional chaining and provide default empty string
+      hyperlinks: pageInfo?.hyperlinks || []  // Use optional chaining and provide default empty array
+    };
+    const features = extractFeatures(urlData);
+    const mlScore = await predict(features);
     
+    let significantFeatures;
+    if (mlScore > 0) {
+      significantFeatures = getSignificantFeatures(features);
+    }
+
     // Check URL with Google Safe Browsing API
     const isUnsafe = await checkUrlWithSafeBrowsing(url);
     
     // Calculate risk score and prepare threat info
-    let riskScore = 0;
+    let riskScore = Math.round(mlScore * 100);
     const threats = [];
     const detectionSources = [];
     
-    // // Add ML model contribution
-    // if (mlPredictionScore > 0.5) {
-    //   const mlContribution = Math.round((mlPredictionScore - 0.5) * 100);
-    //   riskScore += mlContribution;
-    //   threats.push(`ML Model detected suspicious patterns (${Math.round(mlPredictionScore * 100)}% confidence)`);
-    //   detectionSources.push('Machine Learning Model');
-    // }
-
-    riskScore += Math.round(mlPredictionScore * 100);
-    threats.push(`ML Model detected suspicious patterns (${Math.round(mlPredictionScore * 100)}% confidence)`);
-    detectionSources.push('Machine Learning Model');
+    // Add ML model contribution
+    if (mlScore > 0.5) {
+      threats.push(`ML Model detected suspicious patterns (${Math.round(mlScore * 100)}% confidence)`);
+      detectionSources.push('Machine Learning Model');
+    }
     
     // Add Safe Browsing contribution
     if (isUnsafe) {
@@ -205,40 +211,32 @@ async function checkUrl(url: string, tabId?: number) {
         threats,
         lastScanned: new Date().toISOString(),
         isSecure: riskScore < 40,
-        mlPredictionScore,
-        detectionSources
+        mlPredictionScore: mlScore,
+        detectionSources,
+        significantFeatures,
+        featureDescriptions: significantFeatures ? featureDescriptions : undefined
       }
     };
-
-    // Update badge only if we have a valid tab ID
-    if (tabId && tabId > 0) {
-      try {
-        if (riskScore > 90) {
-          await chrome.action.setBadgeText({ text: '!', tabId });
-          await chrome.action.setBadgeBackgroundColor({ color: '#FF0000', tabId });
-        } else {
-          await chrome.action.setBadgeText({ text: '', tabId });
-        }
-      } catch (error) {
-        console.log('Could not update badge for tab:', error);
-        // Continue execution even if badge update fails
-      }
-    }
 
     // Send detailed information to popup
     await sendMessageToPopup(checkResult);
     
     // Show notification for unsafe sites
-    if (riskScore > 75) {
-      chrome.notifications.create({
-        type: 'basic',
-        iconUrl: 'icon128.png',
-        title: 'Warning: Potentially Unsafe Website',
-        message: 'This website has been flagged as potentially dangerous by our extension.'
-      });
+    if (riskScore >= 0 && riskScore <= 25) {
+      setIconColor('green');
+    }
+    else if (riskScore > 25 && riskScore <= 50) {
+      setIconColor('yellow');
+    } else if (riskScore > 50 && riskScore <= 75) {
+      setIconColor('orange');
+    } else if (riskScore > 75) {
+      setIconColor('red');
+    } else {
+      setIconColor('blue');
     }
 
     return checkResult;
+
   } catch (error) {
     console.error('Error checking URL:', error);
     return {

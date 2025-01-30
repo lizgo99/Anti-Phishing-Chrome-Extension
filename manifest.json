@@ -19,16 +19,16 @@
   "action": {
     "default_popup": "popup.html",
     "default_icon": {
-      "16": "icon16.png",
-      "48": "icon48.png",
-      "128": "icon128.png"
+      "16": "blue/blue_icon_16.png",
+      "48": "blue/blue_icon_48.png",
+      "128": "blue/blue_icon_128.png"
     },
     "default_title": "PhishGuard - Protect yourself from phishing"
   },
   "icons": {
-    "16": "icon16.png",
-    "48": "icon48.png",
-    "128": "icon128.png"
+    "16": "16x16icon.png",
+    "48": "48x48icon.png",
+    "128": "128x128icon.png"
   },
   "background": {
     "service_worker": "background.bundle.js",
