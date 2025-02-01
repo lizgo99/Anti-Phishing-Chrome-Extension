@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/accordion"
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
+import phishingFacts from '../config/phishingFacts.json'
 
 interface ScanResult {
   url: string;
@@ -63,16 +64,23 @@ export default function Popup() {
   const [loading, setLoading] = useState(false);
   const [showInfoBox, setShowInfoBox] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [showFactBox, setShowFactBox] = useState(false);
+  const [currentFact, setCurrentFact] = useState<string>("");
+  const [currentFactId, setCurrentFactId] = useState<number>(1);
 
   useEffect(() => {
     const initializePopup = async () => {
       try {
         // Load settings from storage
-        const { isDarkMode, autoScan, latestScanResult } = await chrome.storage.sync.get([
+        const { isDarkMode, autoScan, latestScanResult, lastFactDate, lastFactId } = await chrome.storage.sync.get([
           'isDarkMode',
           'autoScan',
-          'latestScanResult'
+          'latestScanResult',
+          'lastFactDate',
+          'lastFactId'
         ]);
+
+        console.log('[DEBUG] Loading facts:', { phishingFacts, lastFactDate, lastFactId });
 
         console.log('[DEBUG] Loading cached scan result:', latestScanResult);
 
@@ -84,6 +92,31 @@ export default function Popup() {
         // Set auto-scan
         const syncedAutoScan = autoScan ?? true;
         setAutoScan(syncedAutoScan);
+
+        // Update fact if it's a new day
+        const today = new Date().toDateString();
+        if (lastFactDate !== today) {
+          const nextFactId = lastFactId ? (lastFactId % phishingFacts.facts.length) + 1 : 1;
+          console.log('[DEBUG] New day, setting fact:', { nextFactId, fact: phishingFacts.facts[nextFactId - 1]?.fact });
+          setCurrentFactId(nextFactId);
+          setCurrentFact(phishingFacts.facts[nextFactId - 1]?.fact || "Loading fact...");
+          await chrome.storage.sync.set({ 
+            lastFactDate: today,
+            lastFactId: nextFactId
+          });
+        } else if (lastFactId) {
+          console.log('[DEBUG] Same day, using existing fact:', { lastFactId, fact: phishingFacts.facts[lastFactId - 1]?.fact });
+          setCurrentFactId(lastFactId);
+          setCurrentFact(phishingFacts.facts[lastFactId - 1]?.fact || "Loading fact...");
+        } else {
+          console.log('[DEBUG] First time, using first fact');
+          setCurrentFactId(1);
+          setCurrentFact(phishingFacts.facts[0]?.fact || "Loading fact...");
+          await chrome.storage.sync.set({ 
+            lastFactDate: today,
+            lastFactId: 1
+          });
+        }
 
         // Get current tab URL
         const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -365,6 +398,7 @@ export default function Popup() {
             {/* Learn about phishing button */}
             <Button
               variant="ghost"
+              onClick={() => setShowFactBox(!showFactBox)}
               className={`flex items-center space-x-2 ${isDarkMode ? 'hover:bg-[#522C5D]/30' : 'hover:bg-[#AAB7B7]/20'} transition-colors duration-200 rounded-lg py-1.5 px-2 w-full justify-start`}
             >
               <ExternalLink className={`h-6 w-6 ${isDarkMode ? 'text-[#CCBDD6]' : 'text-[#2E4156]'} flex-shrink-0`} />
@@ -389,31 +423,31 @@ export default function Popup() {
               {/* Site Information */}
               {scanResult?.siteInfo && (
                 <div className={`text-xs ${isDarkMode ? 'text-[#CCBDD6]' : 'text-gray-600'} space-y-1 mb-2`}>
-                  <div className="flex items-center justify-between">
-                    <span>Domain:</span>
-                    <span className="font-medium">{scanResult.siteInfo.domain}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span>IP Address:</span>
-                    <span className="font-medium">{scanResult.siteInfo.ipAddress}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span>Port:</span>
-                    <span className="font-medium">{scanResult.siteInfo.port}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span>Security:</span>
-                    <span className={`font-medium ${scanResult.siteInfo.isHttps ? 'text-green-500' : 'text-yellow-500'}`}>
-                      {scanResult.siteInfo.isHttps ? 'HTTPS' : 'HTTP'}
-                    </span>
-                  </div>
-                  {scanResult.siteInfo.serverInfo && (
-                    <div className="flex items-center justify-between">
-                      <span>Server:</span>
-                      <span className="font-medium">{scanResult.siteInfo.serverInfo}</span>
-                    </div>
-                  )}
+                <div className="flex items-center justify-between">
+                  <span>Domain:</span>
+                  <span className="font-medium">{scanResult.siteInfo.domain}</span>
                 </div>
+                <div className="flex items-center justify-between">
+                  <span>IP Address:</span>
+                  <span className="font-medium">{scanResult.siteInfo.ipAddress}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span>Port:</span>
+                  <span className="font-medium">{scanResult.siteInfo.port}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span>Security:</span>
+                  <span className={`font-medium ${scanResult.siteInfo.isHttps ? 'text-green-500' : 'text-yellow-500'}`}>
+                    {scanResult.siteInfo.isHttps ? 'HTTPS' : 'HTTP'}
+                  </span>
+                </div>
+                {scanResult.siteInfo.serverInfo && (
+                  <div className="flex items-center justify-between">
+                    <span>Server:</span>
+                    <span className="font-medium">{scanResult.siteInfo.serverInfo}</span>
+                  </div>
+                )}
+              </div>
               )}
               <Accordion type="single" collapsible className="w-full">
                 <AccordionItem value="info">
@@ -449,6 +483,23 @@ export default function Popup() {
                   </AccordionContent>
                 </AccordionItem>
               </Accordion>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Fact Box */}
+        {showFactBox && (
+          <Card className={`shadow-md ${colors.border} ${isDarkMode ? 'bg-gray-800' : 'bg-white'}`}>
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between mb-4">
+                <span className={`text-sm font-medium ${colors.text}`}>Fact of the Day</span>
+                {/* <span className={`text-xs ${isDarkMode ? 'text-[#CCBDD6]' : 'text-gray-600'}`}>
+                  Fact #{currentFactId}
+                </span> */}
+              </div>
+              <p className={`text-sm ${isDarkMode ? 'text-[#CCBDD6]' : 'text-gray-600'} whitespace-pre-wrap`}>
+                {currentFact || "Loading fact..."}
+              </p>
             </CardContent>
           </Card>
         )}

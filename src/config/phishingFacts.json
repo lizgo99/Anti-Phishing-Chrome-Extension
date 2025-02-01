@@ -1,0 +1,124 @@
+{
+  "facts": [
+    {
+      "id": 1,
+      "fact": "In 2023, the FBI's Internet Crime Complaint Center (IC3) received over 880,000 cybercrime complaints with potential losses exceeding $12.5 billion."
+    },
+    {
+      "id": 2,
+      "fact": "Business Email Compromise (BEC) remains one of the most financially damaging online crimes. It exploits the fact that so many of us rely on email to conduct business."
+    },
+    {
+      "id": 3,
+      "fact": "Phishing emails often create a false sense of urgency to make you act quickly without thinking. Always take a moment to verify urgent requests, especially those involving money or sensitive information."
+    },
+    {
+      "id": 4,
+      "fact": "A legitimate company will never ask for your password via email. If you receive such a request, it's almost certainly a phishing attempt."
+    },
+    {
+      "id": 5,
+      "fact": "Spear phishing attacks target specific individuals or organizations, often using personal information gathered from social media to make the scam more convincing."
+    },
+    {
+      "id": 6,
+      "fact": "Always hover over links in emails to preview the URL before clicking. Phishers often use URLs that look similar to legitimate ones, like 'paypa1.com' instead of 'paypal.com'."
+    },
+    {
+      "id": 7,
+      "fact": "Multi-Factor Authentication (MFA) can prevent 99% of automated attacks, even if your password is compromised through a phishing attack."
+    },
+    {
+      "id": 8,
+      "fact": "Vishing (voice phishing) attacks increased significantly during the pandemic, with scammers exploiting the rise in remote work."
+    },
+    {
+      "id": 9,
+      "fact": "Smishing (SMS phishing) attacks often use package delivery notifications or fake bank alerts to trick users into clicking malicious links."
+    },
+    {
+      "id": 10,
+      "fact": "Grammar and spelling errors are common red flags in phishing emails, as many attacks originate from non-native English speakers."
+    },
+    {
+      "id": 11,
+      "fact": "The most common phishing lures include fake login pages, payment notifications, and security alerts."
+    },
+    {
+      "id": 12,
+      "fact": "Never enter your credentials on a website you accessed through an email link. Instead, manually type the website address in your browser."
+    },
+    {
+      "id": 13,
+      "fact": "Cybercriminals often use current events and disasters to create convincing phishing schemes, like COVID-19 relief payments or natural disaster donations."
+    },
+    {
+      "id": 14,
+      "fact": "Check the sender's email address carefully. Phishers often use addresses that look similar to legitimate ones but have slight variations."
+    },
+    {
+      "id": 15,
+      "fact": "If a deal sounds too good to be true, it probably is. Phishers often use promises of money or prizes to lure victims."
+    },
+    {
+      "id": 16,
+      "fact": "Keep your software and systems updated. Security patches often fix vulnerabilities that phishers could exploit."
+    },
+    {
+      "id": 17,
+      "fact": "Using unique passwords for each account limits the damage if one account is compromised through a phishing attack."
+    },
+    {
+      "id": 18,
+      "fact": "Phishers often create a false sense of authority by impersonating executives or IT staff. Always verify unusual requests through a different communication channel."
+    },
+    {
+      "id": 19,
+      "fact": "QR code phishing (quishing) is an emerging threat where scammers use malicious QR codes to direct victims to fake websites."
+    },
+    {
+      "id": 20,
+      "fact": "The average cost of a data breach caused by phishing was $4.91 million in 2023, significantly higher than breaches with other initial attack vectors."
+    },
+    {
+      "id": 21,
+      "fact": "Enable email authentication protocols like DMARC, SPF, and DKIM to help prevent email spoofing attacks."
+    },
+    {
+      "id": 22,
+      "fact": "AI-powered phishing attacks are becoming more sophisticated, using natural language processing to create more convincing scam messages."
+    },
+    {
+      "id": 23,
+      "fact": "Browser-based security tools can help identify known phishing websites before you enter any sensitive information."
+    },
+    {
+      "id": 24,
+      "fact": "Regular phishing awareness training can reduce an organization's susceptibility to phishing attacks by up to 75%."
+    },
+    {
+      "id": 25,
+      "fact": "Some phishers use fake browser pop-ups that claim your computer is infected to trick you into downloading malware."
+    },
+    {
+      "id": 26,
+      "fact": "The financial sector is the most targeted industry for phishing attacks, followed by SaaS and webmail providers."
+    },
+    {
+      "id": 27,
+      "fact": "Clone phishing occurs when attackers copy a legitimate email you've received and replace the links with malicious ones."
+    },
+    {
+      "id": 28,
+      "fact": "Using a password manager can help you identify fake login pages, as it won't auto-fill credentials on unknown websites."
+    },
+    {
+      "id": 29,
+      "fact": "Zero-day phishing attacks exploit newly discovered vulnerabilities before security patches are available."
+    },
+    {
+      "id": 30,
+      "fact": "Always report phishing attempts to your IT department or relevant authorities. Your report could help prevent others from falling victim."
+    }
+  ]
+}
