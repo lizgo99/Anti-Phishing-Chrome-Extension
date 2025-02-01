@@ -31,13 +31,13 @@
     "128": "128x128icon.png"
   },
   "background": {
-    "service_worker": "background.bundle.js",
+    "service_worker": "background.js",
     "type": "module"
   },
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
-      "js": ["content.bundle.js"]
+      "js": ["content.js"]
     }
   ],
   "web_accessible_resources": [{

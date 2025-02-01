@@ -1,19 +1,42 @@
 const path = require('path');
 const CopyPlugin = require('copy-webpack-plugin');
+const TerserPlugin = require('terser-webpack-plugin');
 
 module.exports = {
-  mode: 'development',
-  devtool: 'cheap-module-source-map',
+  // mode: 'development',
+  mode: 'production',
+  // devtool: 'cheap-module-source-map',
+  devtool: process.env.NODE_ENV === 'development' ? 'cheap-module-source-map' : false,
   entry: {
     popup: './src/popup.tsx',
     background: './src/background.ts',
     content: './src/content.ts'
   },
   output: {
-    filename: '[name].bundle.js',
+    filename: '[name].js',
     path: path.resolve(__dirname, 'dist'),
     clean: true,
   },
+  optimization: {
+    minimize: true,
+    minimizer: [
+      new TerserPlugin({
+        terserOptions: {
+          format: {
+            comments: false,
+          },
+        },
+        extractComments: false,
+      }),
+    ],
+    splitChunks: false  // Disable code splitting for Chrome extension
+  },
+  performance: {
+    maxEntrypointSize: 1024 * 1024,
+    maxAssetSize: 1024 * 1024,
+    hints: 'warning'
+  },
+
   module: {
     rules: [
       {

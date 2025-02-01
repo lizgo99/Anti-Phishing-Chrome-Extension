@@ -413,7 +413,7 @@ export default function Popup() {
                             Prediction Score: {Math.round(scanResult.mlPredictionScore * 100)}%
                           </p>
                           
-                          {/* Show significant features for medium/high risk */}
+                          {/* Show significant features */}
                           {scanResult.significantFeatures && Object.keys(scanResult.significantFeatures).length > 0 && (
                             <div className="mt-2">
                               <h5 className={`text-sm font-medium ${colors.text} mb-1`}>Suspicious Features Detected:</h5>
