@@ -4,18 +4,23 @@
   "version": "1.0",
   "description": "An advanced anti-phishing Chrome extension",
   "permissions": [
-    "activeTab",
     "storage",
     "tabs",
     "scripting",
+    "webNavigation",
+    "windows",
+    "downloads",
+    "activeTab",
     "notifications",
     "webRequest"
   ],
   "host_permissions": [
+    "<all_urls>",
     "http://*/*",
     "https://*/*",
     "https://safebrowsing.googleapis.com/*"
   ],
+  "incognito": "spanning",
   "action": {
     "default_popup": "popup.html",
     "default_icon": {

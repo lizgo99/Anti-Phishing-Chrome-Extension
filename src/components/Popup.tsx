@@ -20,12 +20,11 @@ import {
 } from "@/components/ui/accordion"
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
-// import { loadModel, predict, extractFeatures } from '@/model';
 
-
-interface CheckResultData {
+interface ScanResult {
   url: string;
   riskScore: number;
+  riskLevel: string;
   threats: string[];
   lastScanned: string;
   isSecure: boolean;
@@ -33,22 +32,20 @@ interface CheckResultData {
   detectionSources: string[];
   significantFeatures?: { [key: string]: number };
   featureDescriptions?: { [key: string]: string };
+  siteInfo?: {
+    domain: string;
+    ipAddress: string;
+    protocol: string;
+    port: string;
+    isHttps: boolean;
+    lastModified?: string;
+    serverInfo?: string;
+  };
 }
 
 interface CheckResult {
   type: 'URL_CHECK_RESULT';
-  data: CheckResultData;
-}
-
-interface ScanResult {
-  riskLevel: string;
-  lastScanned: string;
-  threats: string[];
-  isSecure: boolean;
-  mlPredictionScore?: number;
-  detectionSources: string[];
-  significantFeatures?: { [key: string]: number };
-  featureDescriptions?: { [key: string]: string };
+  data: ScanResult;
 }
 
 export default function Popup() {
@@ -57,10 +54,10 @@ export default function Popup() {
   const [scanning, setScanning] = useState(false)
   const [riskScore, setRiskScore] = useState(0)
   const [isDarkMode, setIsDarkMode] = useState(() => {
-    // Try to get the stored theme preference synchronously
-    const storedTheme = localStorage.getItem('isDarkMode');
-    return storedTheme ? JSON.parse(storedTheme) : false;
-  })
+          const storedTheme = localStorage.getItem('isDarkMode');
+          return storedTheme ? JSON.parse(storedTheme) : false;
+        })
+  const [autoScan, setAutoScan] = useState(true); // Default to true
   const [scanResult, setScanResult] = useState<ScanResult | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false);
@@ -70,36 +67,38 @@ export default function Popup() {
   useEffect(() => {
     const initializePopup = async () => {
       try {
-        // Load theme preference from storage and sync with localStorage
-        const result = await chrome.storage.sync.get('isDarkMode');
-        const syncedTheme = result.isDarkMode ?? false;
+        // Load settings from storage
+        const { isDarkMode, autoScan, latestScanResult } = await chrome.storage.sync.get([
+          'isDarkMode',
+          'autoScan',
+          'latestScanResult'
+        ]);
+
+        console.log('[DEBUG] Loading cached scan result:', latestScanResult);
+
+        // Set theme
+        const syncedTheme = isDarkMode ?? false;
         setIsDarkMode(syncedTheme);
         localStorage.setItem('isDarkMode', JSON.stringify(syncedTheme));
+
+        // Set auto-scan
+        const syncedAutoScan = autoScan ?? true;
+        setAutoScan(syncedAutoScan);
 
         // Get current tab URL
         const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
         if (tabs[0]?.url) {
           setUrl(tabs[0].url);
           
-          // Request latest check result from background script
-          chrome.runtime.sendMessage({ type: 'GET_LATEST_RESULT' }, (response: CheckResult | null) => {
-            if (response?.data) {
-              const { riskScore, threats, lastScanned, isSecure, mlPredictionScore, detectionSources, significantFeatures, featureDescriptions } = response.data;
-              setRiskScore(riskScore);
-              setScanResult({
-                riskLevel: getRiskLevelText(riskScore),
-                lastScanned,
-                threats,
-                isSecure,
-                mlPredictionScore,
-                detectionSources,
-                significantFeatures,
-                featureDescriptions
-              });
-              setScanning(false);
-            }
-          });
+          // Update UI with latest scan result if available and auto-scan is enabled
+          if (syncedAutoScan && latestScanResult?.data) {
+            updateScanResult(latestScanResult.data);
+          } else {
+            setRiskScore(0);
+            setScanResult(null);
+          }
         }
+        setScanning(false);
       } catch (err) {
         setError('Failed to initialize popup');
         console.error('Popup initialization error:', err);
@@ -108,21 +107,10 @@ export default function Popup() {
 
     initializePopup();
 
-    // Set up message listener
+    // Set up message listener for updates from background script
     const messageListener = (message: CheckResult) => {
       if (message.type === 'URL_CHECK_RESULT' && message.data) {
-        const { riskScore, threats, lastScanned, isSecure, mlPredictionScore, detectionSources, significantFeatures, featureDescriptions } = message.data;
-        setRiskScore(riskScore);
-        setScanResult({
-          riskLevel: getRiskLevelText(riskScore),
-          lastScanned,
-          threats,
-          isSecure,
-          mlPredictionScore,
-          detectionSources,
-          significantFeatures,
-          featureDescriptions
-        });
+        updateScanResult(message.data);
         setScanning(false);
         setError(null);
       }
@@ -130,15 +118,53 @@ export default function Popup() {
 
     chrome.runtime.onMessage.addListener(messageListener);
 
-    // Cleanup
+    // Listen for storage changes
+    const handleStorageChange = (changes: { [key: string]: chrome.storage.StorageChange }) => {
+      if (changes.autoScan) {
+        setAutoScan(changes.autoScan.newValue);
+      }
+      if (changes.latestScanResult && changes.latestScanResult.newValue?.data) {
+        updateScanResult(changes.latestScanResult.newValue.data);
+      }
+    };
+
+    chrome.storage.onChanged.addListener(handleStorageChange);
+
     return () => {
       chrome.runtime.onMessage.removeListener(messageListener);
+      chrome.storage.onChanged.removeListener(handleStorageChange);
     };
   }, []);
 
-  // Handle keyboard events
-  const handleKeyPress = (event: React.KeyboardEvent<HTMLInputElement>) => {
-    if (event.key === 'Enter' && !scanning) {
+  // Helper function to update scan result state
+  const updateScanResult = (data: ScanResult) => {
+    const { riskScore: newRiskScore, threats, lastScanned, isSecure, mlPredictionScore, detectionSources, significantFeatures, featureDescriptions, siteInfo } = data;
+    setRiskScore(newRiskScore);
+    setScanResult({
+      url: data.url,
+      riskScore: newRiskScore,
+      riskLevel: getRiskLevelText(newRiskScore),
+      threats,
+      lastScanned,
+      isSecure,
+      mlPredictionScore,
+      detectionSources,
+      significantFeatures,
+      featureDescriptions,
+      siteInfo
+    });
+  };
+
+  // Handle auto-scan toggle
+  const handleAutoScanToggle = async (checked: boolean) => {
+    setAutoScan(checked);
+    await chrome.storage.sync.set({ autoScan: checked });
+    
+    // Notify background script of the change
+    chrome.runtime.sendMessage({ type: 'UPDATE_AUTO_SCAN', autoScan: checked });
+    
+    // If enabling auto-scan, trigger a fresh scan
+    if (checked && url) {
       handleScan();
     }
   };
@@ -146,58 +172,41 @@ export default function Popup() {
   // Initiates the URL scanning process
   const handleScan = async () => {
     setScanning(true);
+    setError(null);
+    
     try {
-      // Send message to background script to check URL
-      const response = await chrome.runtime.sendMessage({
-        type: 'CHECK_URL',
-        url: url
-      });
-
-      console.log('Response from Popup:', response);
-      console.log('URL from Popup:', url)
-
-      if (response && response.data) {
-        const { riskScore, threats, lastScanned, isSecure, mlPredictionScore, detectionSources, significantFeatures, featureDescriptions } = response.data;
-        setRiskScore(riskScore);
-        setScanResult({
-          riskLevel: getRiskLevelText(riskScore),
-          lastScanned: new Date(lastScanned).toLocaleString(),
-          threats: threats,
-          isSecure: isSecure,
-          mlPredictionScore,
-          detectionSources,
-          significantFeatures,
-          featureDescriptions
+      // Get the active tab
+      const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      
+      // If URL is different from current tab, use safe preview only.
+      if (activeTab?.url !== url) {
+        await chrome.runtime.sendMessage({
+          type: 'OPEN_SAFE_PREVIEW',
+          data: { url }
         });
+        // Do not call CHECK_URL here.
       } else {
-        // Handle case where response is invalid
-        setRiskScore(0);
-        setScanResult({
-          riskLevel: 'Error',
-          lastScanned: new Date().toLocaleString(),
-          threats: ['Could not analyze URL'],
-          isSecure: false,
-          mlPredictionScore: undefined,
-          detectionSources: [],
-          significantFeatures: undefined,
-          featureDescriptions: undefined
+        // For the active tab URL, do a normal scan.
+        const response = await chrome.runtime.sendMessage({
+          type: 'CHECK_URL',
+          data: { url, tabId: activeTab?.id }
         });
+        if (response?.error) {
+          setError(response.error);
+        }
       }
     } catch (error) {
-      console.error('Error scanning URL:', error);
-      setRiskScore(0);
-      setScanResult({
-        riskLevel: 'Error',
-        lastScanned: new Date().toLocaleString(),
-        threats: ['Error scanning URL'],
-        isSecure: false,
-        mlPredictionScore: undefined,
-        detectionSources: [],
-        significantFeatures: undefined,
-        featureDescriptions: undefined
-      });
+      console.error('Scan error:', error);
+      setError('Failed to scan URL');
     } finally {
       setScanning(false);
+    }
+  };  
+
+  // Handle keyboard events
+  const handleKeyPress = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'Enter' && !scanning) {
+      handleScan();
     }
   };
 
@@ -249,17 +258,10 @@ export default function Popup() {
   const getThemeColors = () => {
     return isDarkMode
       ? {
-          // bg: 'bg-[#29104A]',
           bg: 'bg-gray-900',
-          // text: 'text-white',
-          // text: 'text-[#FFE3D8]',
           text: 'text-[#CCBDD6]',
-          // border: 'border-purple-600',
           border: 'border-[#522C5D]',
-          // button: 'bg-purple-600 hover:bg-purple-700',
           button: 'bg-[#522C5D] hover:bg-[#522C5D]',
-          // buttonText: 'text-white',
-          // buttonText: 'text-[#FFE3D8]',
           buttonText: 'text-[#CCBDD6]',
         }
       : {
@@ -284,7 +286,7 @@ export default function Popup() {
 
   return (
     // Main container with dynamic theme colors
-    <div className={`w-96 p-4 transition-colors duration-300 ${colors.bg} ${colors.text}`}>
+    <div className={`w-96 p-4 transition-colors duration-300 ${colors.bg} ${colors.text} ${isDarkMode ? 'dark' : ''}`}>
       <div className="space-y-4">
         {/* URL Input and Scan Button */}
         <div className="flex items-center gap-1">
@@ -295,7 +297,7 @@ export default function Popup() {
               placeholder="Enter URL: https://example.com"
               value={url}
               onChange={(e) => setUrl(e.target.value)}
-              onKeyPress={handleKeyPress}
+              onKeyDown={handleKeyPress}
               className={`w-full rounded-l-full rounded-r-full pr-24 ${colors.border} ${
                 isDarkMode ? 'bg-gray-800 text-[#CCBDD6]' : 'bg-white text-gray-900'
               } placeholder-gray-400`}
@@ -351,14 +353,14 @@ export default function Popup() {
               <Shield className={`h-6 w-6 ${isDarkMode ? 'text-[#CCBDD6]' : 'text-[#2E4156]'} flex-shrink-0`} />
               <span className={`text-sm ${colors.text} font-medium`}>Declare As Safe</span>
             </Button>
-            {/* Info about site button */}
+            {/* Site Information button */}
             <Button
               variant="ghost"
               onClick={() => setShowInfoBox(!showInfoBox)}
               className={`flex items-center space-x-2 ${isDarkMode ? 'hover:bg-[#522C5D]/30' : 'hover:bg-[#AAB7B7]/20'} transition-colors duration-200 rounded-lg py-1.5 px-2 w-full justify-start`}
             >
               <Info className={`h-6 w-6 ${isDarkMode ? 'text-[#CCBDD6]' : 'text-[#2E4156]'} flex-shrink-0`} />
-              <span className={`text-sm ${colors.text} font-medium`}>Info About Site</span>
+              <span className={`text-sm ${colors.text} font-medium`}>Site Information</span>
             </Button>
             {/* Learn about phishing button */}
             <Button
@@ -371,12 +373,12 @@ export default function Popup() {
           </div>
         </div>
 
-        {/* Info About Site */}
+        {/* Site Information */}
         {showInfoBox && (
           <Card className={`shadow-md ${colors.border} ${isDarkMode ? 'bg-gray-800' : 'bg-white'}`}>
             <CardContent className="p-4">
               <div className="flex items-center justify-between mb-2">
-                <span className={`text-sm font-medium ${colors.text}`}>INFO ABOUT SITE</span>
+                <span className={`text-sm font-medium ${colors.text}`}>Site Information</span>
                 <span className={`text-sm ${isDarkMode ? 'text-[#CCBDD6]' : 'text-gray-600'}`}>
                   Risk Level: <span className={getRiskColor(riskScore)}>{getRiskLevelText(riskScore)}</span>
                 </span>
@@ -384,6 +386,35 @@ export default function Popup() {
               <div className={`text-xs ${isDarkMode ? 'text-[#CCBDD6]' : 'text-gray-600'} mb-2`}>
                 Last scanned: {new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })}
               </div>
+              {/* Site Information */}
+              {scanResult?.siteInfo && (
+                <div className={`text-xs ${isDarkMode ? 'text-[#CCBDD6]' : 'text-gray-600'} space-y-1 mb-2`}>
+                  <div className="flex items-center justify-between">
+                    <span>Domain:</span>
+                    <span className="font-medium">{scanResult.siteInfo.domain}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span>IP Address:</span>
+                    <span className="font-medium">{scanResult.siteInfo.ipAddress}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span>Port:</span>
+                    <span className="font-medium">{scanResult.siteInfo.port}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span>Security:</span>
+                    <span className={`font-medium ${scanResult.siteInfo.isHttps ? 'text-green-500' : 'text-yellow-500'}`}>
+                      {scanResult.siteInfo.isHttps ? 'HTTPS' : 'HTTP'}
+                    </span>
+                  </div>
+                  {scanResult.siteInfo.serverInfo && (
+                    <div className="flex items-center justify-between">
+                      <span>Server:</span>
+                      <span className="font-medium">{scanResult.siteInfo.serverInfo}</span>
+                    </div>
+                  )}
+                </div>
+              )}
               <Accordion type="single" collapsible className="w-full">
                 <AccordionItem value="info">
                   <AccordionTrigger className={`text-sm ${colors.text}`}>
@@ -391,20 +422,6 @@ export default function Popup() {
                   </AccordionTrigger>
                   <AccordionContent>
                     <div className="space-y-4">
-                      {/* Threats List
-                      <div className="space-y-2">
-                        <h4 className={`font-medium ${colors.text}`}>Detected Threats:</h4>
-                        <ul className="list-disc list-inside space-y-1">
-                          {scanResult?.threats && scanResult.threats.length > 0 ? (
-                            scanResult.threats.map((threat, index) => (
-                              <li key={index} className="text-red-500">{threat}</li>
-                            ))
-                          ) : (
-                            <li className="text-green-500">No threats detected</li>
-                          )}
-                        </ul>
-                      </div> */}
-
                       {/* ML Model Score and Features */}
                       {scanResult?.mlPredictionScore !== undefined && (
                         <div className="space-y-2">
@@ -428,26 +445,6 @@ export default function Popup() {
                           )}
                         </div>
                       )}
-
-                      {/* Detection Sources
-                      {scanResult?.detectionSources && scanResult.detectionSources.length > 0 && (
-                        <div className="space-y-1">
-                          <h4 className={`font-medium ${colors.text}`}>Detection Sources:</h4>
-                          <ul className="list-disc list-inside">
-                            {scanResult.detectionSources.map((source, index) => (
-                              <li key={index} className={isDarkMode ? 'text-gray-400' : 'text-gray-600'}>
-                                {source}
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      )} */}
-
-                      {/* <p className={`italic ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                        {scanResult?.isSecure 
-                          ? 'This site appears to be safe based on our security checks.'
-                          : 'Exercise caution when interacting with this site.'}
-                      </p> */}
                     </div>
                   </AccordionContent>
                 </AccordionItem>
@@ -464,7 +461,11 @@ export default function Popup() {
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <Label htmlFor="auto-scan" className={`${colors.text}`}>Auto-scan new sites</Label>
-                  <Switch id="auto-scan" />
+                  <Switch 
+                    id="auto-scan" 
+                    checked={autoScan}
+                    onCheckedChange={handleAutoScanToggle}
+                  />
                 </div>
                 <div className="flex items-center justify-between">
                   <Label htmlFor="notifications" className={`${colors.text}`}>Enable notifications</Label>
