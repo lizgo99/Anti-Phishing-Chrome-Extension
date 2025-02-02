@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "PhishGuard",
+  "name": "AntiPhish",
   "version": "1.0",
   "description": "An advanced anti-phishing Chrome extension",
   "permissions": [
@@ -29,7 +29,7 @@
       "48": "blue/blue_icon_48.png",
       "128": "blue/blue_icon_128.png"
     },
-    "default_title": "PhishGuard - Protect yourself from phishing"
+    "default_title": "AntiPhish - Protect yourself from phishing"
   },
   "icons": {
     "16": "16x16icon.png",

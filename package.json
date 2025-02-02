@@ -1,5 +1,5 @@
 {
-  "name": "phishguard",
+  "name": "antiphish",
   "version": "1.0.0",
   "description": "Anti-phishing Chrome extension",
   "scripts": {

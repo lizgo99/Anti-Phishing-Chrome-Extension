@@ -10,11 +10,11 @@ export async function loadModel() {
   if (!model) {
     try {
       // Load the pre-trained model
-      model = await tf.loadLayersModel('https://lizgo99.github.io/my-tfjs-model/old_model/model.json');
+      model = await tf.loadLayersModel('https://lizgo99.github.io/my-tfjs-model/model/model.json');
       // model = await tf.loadLayersModel('model/model.json');
       
       // Load the scaler parameters
-      const response = await fetch('https://lizgo99.github.io/my-tfjs-model/old_model/scaler.json');
+      const response = await fetch('https://lizgo99.github.io/my-tfjs-model/model/scaler.json');
       // const response = await fetch('model/scaler.json');
       scaler = await response.json();
       

@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/accordion"
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
-import phishingFacts from '../config/phishingFacts.json'
+import phishingFacts from '../../phishingFacts.json'
 
 interface ScanResult {
   url: string;

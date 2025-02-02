@@ -1,7 +1,6 @@
 const path = require('path');
 const CopyPlugin = require('copy-webpack-plugin');
 const TerserPlugin = require('terser-webpack-plugin');
-const Dotenv = require('dotenv-webpack');
 
 module.exports = {
   mode: 'production',
@@ -30,7 +29,7 @@ module.exports = {
         extractComments: false,
       }),
     ],
-    splitChunks: false  // Disable code splitting for Chrome extension
+    splitChunks: false
   },
   performance: {
     maxEntrypointSize: 1024 * 1024,
@@ -77,10 +76,6 @@ module.exports = {
     ],
   },
   plugins: [
-    new Dotenv({
-      systemvars: true, // Load system environment variables as well
-      defaults: true // Load '.env.defaults' as the default values if empty
-    }),
     new CopyPlugin({
       patterns: [
         { from: "public", to: "." },

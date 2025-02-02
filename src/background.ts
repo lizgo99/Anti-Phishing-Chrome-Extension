@@ -13,14 +13,7 @@ declare global {
 }
 
 import * as tf from '@tensorflow/tfjs';
-import { config, APP_CONFIG } from '@/config/config';
-import {
-  loadModel,
-  extractFeatures,
-  predict,
-  getSignificantFeatures,
-  featureDescriptions,
-} from '@/model';
+import {loadModel,extractFeatures,predict,getSignificantFeatures,featureDescriptions} from '@/model';
 
 const setIconColor = (color: string) => {
   chrome.action.setIcon({
@@ -57,48 +50,6 @@ chrome.runtime.onInstalled.addListener(async () => {
   setIconColor('blue');
   chrome.action.enable();
 });
-
-async function checkUrlWithSafeBrowsing(url: string): Promise<boolean> {
-  const apiKey = process.env.GOOGLE_SAFE_BROWSING_API_KEY;
-  
-  if (!apiKey) {
-    console.error('Google Safe Browsing API key is not configured');
-    return false;
-  }
-
-  const apiUrl = `https://safebrowsing.googleapis.com/v4/threatMatches:find?key=${apiKey}`;
-
-  const requestBody = {
-    client: {
-      clientId: APP_CONFIG.CLIENT_ID,
-      clientVersion: APP_CONFIG.API_VERSION,
-    },
-    threatInfo: {
-      threatTypes: [
-        'MALWARE',
-        'SOCIAL_ENGINEERING',
-        'UNWANTED_SOFTWARE',
-        'POTENTIALLY_HARMFUL_APPLICATION',
-      ],
-      platformTypes: ['ANY_PLATFORM'],
-      threatEntryTypes: ['URL'],
-      threatEntries: [{ url }],
-    },
-  };
-
-  try {
-    const response = await fetch(apiUrl, {
-      method: 'POST',
-      body: JSON.stringify(requestBody),
-      headers: { 'Content-Type': 'application/json' },
-    });
-    const data = await response.json();
-    return data.matches && data.matches.length > 0;
-  } catch (error) {
-    console.error('Error checking URL with Safe Browsing API:', error);
-    return false;
-  }
-}
 
 interface CheckResultData {
   url: string;
@@ -276,8 +227,6 @@ async function checkUrl(url: string, tabId?: number): Promise<CheckResult | null
       significantFeatures = getSignificantFeatures(features);
     }
 
-    const isUnsafe = await checkUrlWithSafeBrowsing(url);
-
     let riskScore = Math.round(mlScore * 100);
     const threats: string[] = [];
     const detectionSources: string[] = [];
@@ -286,11 +235,6 @@ async function checkUrl(url: string, tabId?: number): Promise<CheckResult | null
     if (mlScore > 0.3) {
       threats.push(`ML Model detected suspicious patterns (${Math.round(mlScore * 100)}% confidence)`);
       detectionSources.push('Machine Learning Model');
-    }
-    if (isUnsafe) {
-      riskScore += 60;
-      threats.push('Flagged by Google Safe Browsing');
-      detectionSources.push('Google Safe Browsing');
     }
     riskScore = Math.min(100, riskScore);
 
@@ -321,9 +265,7 @@ async function checkUrl(url: string, tabId?: number): Promise<CheckResult | null
       })
       .catch(err => console.error('Error fetching site info:', err));
 
-    // Lower threshold to 70 to show warnings more aggressively
     if (riskScore > 95 && tabId !== undefined && tabId > 0) {
-      // Reset warned state on each check to ensure warnings show up
       await chrome.storage.local.set({ warnedUrls: {} });
       const alreadyWarned = await wasWarningShown(url);
       if (!alreadyWarned) {
@@ -435,7 +377,6 @@ chrome.webNavigation.onBeforeNavigate.addListener(async details => {
   if (details.frameId !== 0) return;
   if (isForbiddenUrl(details.url)) return;
   
-  // If this URL is already being checked, skip
   if (urlsBeingChecked.has(details.url)) return;
   urlsBeingChecked.add(details.url);
 
@@ -459,7 +400,6 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
     const { autoScan } = await chrome.storage.sync.get('autoScan');
     if (!autoScan) return;
 
-    // If this URL is already being checked, skip
     if (urlsBeingChecked.has(tab.url)) return;
     urlsBeingChecked.add(tab.url);
 
@@ -520,8 +460,8 @@ async function openSafePreview(url: string): Promise<SafePreviewWindow> {
     // Create new hidden incognito tab
     const tab = await chrome.tabs.create({
       url: url,
-      active: false,  // Keep it inactive (won't be visible)
-      selected: false // Won't be selected
+      active: false, 
+      selected: false
     });
 
     console.log('[DEBUG] Hidden tab created:', tab);
@@ -584,7 +524,6 @@ async function cleanupPreviewWindow(windowId: number) {
   }
 }
 
-// Listen for preview window closes
 chrome.windows.onRemoved.addListener((windowId) => {
   cleanupPreviewWindow(windowId);
 });
@@ -650,13 +589,3 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 });
-
-// chrome.runtime.onMessage.addListener(async (request, sender, sendResponse) => {
-//   if (request.action === 'scan') {
-//     setTimeout(() => {
-//       const riskScore = Math.floor(Math.random() * 100);
-//       sendResponse({ riskScore });
-//     }, 2000);
-//     return true;
-//   }
-// });
