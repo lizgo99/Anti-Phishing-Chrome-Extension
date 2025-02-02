@@ -1,57 +1,49 @@
-# AntiPhishing Chrome Extension
+# Anti-Phishing Chrome Extension
 
-## Overview
-The AntiPhishing Chrome Extension is designed to detect phishing attempts by monitoring web pages and analyzing suspicious patterns in URLs and content. It serves as a robust network security tool intended for protecting users by alerting them to potential phishing threats. The extension largely meets its goal by offering real-time detection and alerting mechanisms, although there are areas that can be further optimized.
+AntiPhish is a security-focused Chrome extension that uses machine learning to protect users from phishing attacks. The tool analyzes URLs in real-time, alerts users about suspicious sites, and provides educational content to raise awareness about phishing threats.
 
-## Goals and Performance
-- **Primary Goal:** To provide an efficient anti-phishing mechanism for Chrome users through real-time analysis and alerting.
-- **Performance:** The tool successfully identifies potential phishing attempts. However, it encounters performance issues under heavy DOM loads and might produce occasional false positives.
+## Key Features
 
-## Issues Encountered
-- **Background Process Stability:** Challenges in maintaining persistent event listeners in `src/background.ts` under heavy load conditions.
-- **Content Script Efficiency:** The `src/content.ts` script sometimes struggles with performance on pages with complex or rapidly changing content.
-- **Build Process Complications:** Initial configuration of `webpack.config.js` required fine-tuning to properly bundle TypeScript (`.ts`) and TSX (`.tsx`) files.
-- **UI Responsiveness:** The user interface defined in `src/popup.tsx` occasionally faces rendering issues on older Chrome versions.
+- **Machine Learning-Powered Detection**: Utilizes a trained model (based on the Web page Phishing Detection Dataset from Kaggle)
+- **Real-time URL Analysis**: Automatically checks website security levels and adjusts the extension icon color accordingly
+- **Visual Security Indicator**: Clear visual feedback about the security level of visited websites
+- **Manual Site Scanning**: Ability to manually scan any URL for potential threats
+- **Configurable Protection**: Option to toggle between automatic and manual scanning modes
+- **Security Warnings**: Displays warning pages for high-risk websites before allowing access
+- **Educational Content**: Daily phishing awareness tips to help users stay informed
+- **Phishing Report System**: Integration with official reporting platforms for suspicious websites
+- **User-friendly Interface**: Clean and intuitive design with theme customization options
+- **Persistent Settings**: Chrome API integration for maintaining user preferences
 
-## Strengths and Weaknesses
-### Strengths
-- **Real-time Phishing Detection:** Quickly identifies and alerts users to suspected phishing activities.
-- **Modular Architecture:** Clear separation between background processes, content analysis, and user interface components.
-- **Modern Codebase:** Utilizes TypeScript and React (in popup) for improved maintainability and scalability.
+## How It Works
 
-### Weaknesses
-- **False Positives:** The detection algorithm can mistakenly flag legitimate websites as suspicious.
-- **Performance Bottlenecks:** Especially in scenarios with heavy or dynamic webpage content.
-- **Limited Logging:** More comprehensive logging would aid troubleshooting and performance tuning.
+1. When you visit a website, AntiPhish automatically analyzes the URL's security level
+2. The extension icon changes color based on the risk level detected
+3. For high-risk sites, a warning page appears before allowing access
+4. Users can choose to proceed to the site or return to safety
+5. Manual URL scanning is available for checking specific websites
+6. Daily tips and educational content help improve phishing awareness
 
-## Description of the Tool's Operation
+## Setup Instructions
 
-```mermaid
-flowchart TD
-    A[User Navigates to Webpage] --> B[Content Script Injected]
-    B --> C[Analyze Page Content]
-    C --> D{Phishing Indicators Found?}
-    D -->|Yes| E[Send Alert to Background]
-    D -->|No| F[Continue Normal Browsing]
-    E --> G[Background Process Checks API]
-    G --> H{Verified Threat?}
-    H -->|Yes| I[Update Popup UI with Warning]
-    H -->|No| J[Log Event for Analysis]
-    I --> K[User Sees Phishing Warning]
-```
+1. Clone this repository
 
-The extension operates by injecting a content script (`src/content.ts`) into active web pages. This script analyzes page content to locate elements indicative of phishing. Simultaneously, the background script (`src/background.ts`) monitors network requests and manages inter-process communications between tabs and the popup UI. All source files are bundled using webpack, ensuring compatibility with Chrome’s extension architecture.
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
 
-## Code Documentation and Main Components
-- **manifest.json:** Defines essential metadata, permissions, and configurations required by the Chrome extension.
-- **src/background.ts:** Contains the background logic for handling asynchronous events, monitoring network activities, and coordinating with other extension components.
-- **src/content.ts:** Deployed on web pages to gather data on potential phishing content and send relevant information back to the background process.
-- **src/popup.tsx:** Implements the interactive popup UI that users can access to view alerts and information. This component is built using React and TypeScript.
-- **webpack.config.js:** Responsible for bundling and processing the different source files, ensuring that all modules work together seamlessly.
+3. Build the extension:
+   ```bash
+   npm run build
+   ```
 
-Each code module includes inline comments and JSDoc-style documentation to explain functionality, making the codebase easier to understand and maintain for future development.
+4. Load the extension in Chrome:
+   - Open Chrome and go to `chrome://extensions/`
+   - Enable "Developer mode"
+   - Click "Load unpacked"
+   - Select the `dist` folder from this project
 
-## Conclusion
-The AntiPhishing Chrome Extension is a well-constructed tool that effectively addresses phishing risks in real-time. While it has demonstrated success in meeting its primary objectives, continuous improvements in performance, false positive reduction, and UI responsiveness are essential for future iterations.
+## Security Note
 
-_Last updated on 2025-02-02_
+While AntiPhish provides an additional layer of security, it should be used in conjunction with other security practices and common sense when browsing the internet. Always be cautious with sensitive information online.
