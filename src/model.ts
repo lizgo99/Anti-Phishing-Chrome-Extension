@@ -5,6 +5,7 @@ let scaler: any = null;
 
 /**
  * Load the TensorFlow.js model and scaler
+ * @returns Promise that resolves when the model and scaler are loaded
  */
 export async function loadModel() {
   if (!model) {
@@ -29,6 +30,8 @@ export async function loadModel() {
 
 /**
  * Scale features using the saved scaler parameters
+ * @param features - The features to scale
+ * @returns The scaled features
  */
 function scaleFeatures(features: number[]): number[] {
   if (!scaler) {
@@ -168,9 +171,6 @@ export function getSignificantFeatures(features: number[]): { [key: string]: num
 
   const significantFeatures: { [key: string]: number } = {};
   features.forEach((value, index) => {
-    // For binary features (0/1), include if 1
-    // For ratio features, include if > 0.3
-    // For count features, include if > 0
     const featureName = featureNames[index];
     if (
       (featureName.startsWith('ratio_') && value > 0.3) ||
@@ -191,6 +191,8 @@ export function getSignificantFeatures(features: number[]): { [key: string]: num
 
 /**
  * Predict the risk score using the model
+ * @param features - Array of feature values
+ * @returns Risk score between 0 and 1
  */
 export async function predict(features: number[]): Promise<number> {
   try {

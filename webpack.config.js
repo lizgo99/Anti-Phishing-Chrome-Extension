@@ -4,7 +4,6 @@ const TerserPlugin = require('terser-webpack-plugin');
 
 module.exports = {
   mode: 'production',
-  // devtool: 'cheap-module-source-map',
   devtool: process.env.NODE_ENV === 'development' ? 'cheap-module-source-map' : false,
   entry: {
     popup: './src/popup.tsx',

@@ -1,8 +1,16 @@
 /*
  * background.ts
- * This is the background script for the Anti-Phishing Chrome Extension.
- * It runs continuously in the background and handles URL monitoring,
- * suspicious site detection, and communication with the popup interface.
+ * 
+ * Core service worker for the Anti-Phishing Chrome Extension that manages URL analysis,
+ * threat detection, and browser integration. Implements real-time website scanning using
+ * machine learning and heuristic analysis.
+ * 
+ * Core Functions:
+ * - URL monitoring and interception
+ * - ML-based threat detection (TensorFlow.js)
+ * - Safe preview functionality
+ * - Warning page management
+ * - Chrome API orchestration
  */
 
 /// <reference types="chrome"/>
@@ -15,6 +23,10 @@ declare global {
 import * as tf from '@tensorflow/tfjs';
 import {loadModel,extractFeatures,predict,getSignificantFeatures,featureDescriptions} from '@/model';
 
+/**
+ * Updates the extension icon based on risk level
+ * @param color - Icon color indicating risk level (blue=default, green=safe, yellow=caution, orange=warning, red=danger)
+ */
 const setIconColor = (color: string) => {
   chrome.action.setIcon({
     path: {
@@ -25,6 +37,11 @@ const setIconColor = (color: string) => {
   });
 };
 
+/**
+ * Determines icon color based on risk assessment score
+ * @param riskScore - Numerical risk score (0-100)
+ * @returns Color code for the extension icon
+ */
 const getIconColorFromRiskScore = (riskScore: number | undefined): string => {
   if (riskScore === undefined) return 'blue';
   if (riskScore >= 0 && riskScore <= 25) return 'green';
@@ -34,6 +51,9 @@ const getIconColorFromRiskScore = (riskScore: number | undefined): string => {
   return 'blue';
 };
 
+/**
+ * Initializes the extension by setting up storage and TensorFlow
+ */
 chrome.runtime.onInstalled.addListener(async () => {
   console.log('Anti-Phishing Extension installed');
   await chrome.storage.sync.set({
@@ -52,15 +72,25 @@ chrome.runtime.onInstalled.addListener(async () => {
 });
 
 interface CheckResultData {
+  /** Target URL that was analyzed */
   url: string;
+  /** Aggregated risk score (0-100) */
   riskScore: number;
+  /** List of identified security concerns */
   threats: string[];
+  /** Timestamp of the scan */
   lastScanned: string;
+  /** Security assessment result */
   isSecure: boolean;
+  /** Raw ML model prediction score */
   mlPredictionScore?: number;
+  /** Sources that contributed to threat detection */
   detectionSources: string[];
+  /** ML model's significant feature weights */
   significantFeatures?: { [key: string]: number };
+  /** Human-readable descriptions of ML features */
   featureDescriptions?: { [key: string]: string };
+  /** Technical site information */
   siteInfo?: {
     domain: string;
     ipAddress: string;
@@ -72,15 +102,24 @@ interface CheckResultData {
   };
 }
 
+/**
+ * Message format for scan results
+ */
 interface CheckResult {
   type: 'URL_CHECK_RESULT';
   data: CheckResultData;
 }
 
+/**
+ * Map of URLs that have been warned about
+ */
 interface WarnedUrls {
   [url: string]: boolean;
 }
 
+/**
+ * Pending decisions for user approval after warning
+ */
 interface PendingDecision {
   resolve: (allow: boolean) => void;
   tabId: number;
@@ -88,6 +127,10 @@ interface PendingDecision {
 
 const pendingDecisions: Map<string, PendingDecision> = new Map();
 
+/**
+ * Sends a message to the popup
+ * @param message - Message to send
+ */
 const sendMessageToPopup = async (message: CheckResult) => {
   try {
     const views = chrome.extension.getViews({ type: 'popup' });
@@ -99,6 +142,11 @@ const sendMessageToPopup = async (message: CheckResult) => {
   }
 };
 
+/**
+ * Checks if a URL is forbidden
+ * @param url - URL to check
+ * @returns `true` if the URL is forbidden, `false` otherwise
+ */
 function isForbiddenUrl(url: string): boolean {
   try {
     const urlObj = new URL(url);
@@ -116,6 +164,11 @@ function isForbiddenUrl(url: string): boolean {
   }
 }
 
+/**
+ * Gets page title and hyperlinks
+ * @param tabId - ID of the tab to get info from
+ * @returns Object with title and hyperlinks
+ */
 async function getPageInfo(tabId: number): Promise<{ title: string; hyperlinks: string[] }> {
   try {
     const tab = await chrome.tabs.get(tabId);
@@ -143,6 +196,11 @@ async function getPageInfo(tabId: number): Promise<{ title: string; hyperlinks: 
   }
 }
 
+/**
+ * Gets site information (domain, IP address, protocol, port, HTTPS status, last modified, and server info)
+ * @param url - URL to get site info for
+ * @returns Object with site information
+ */
 async function getSiteInfo(url: string): Promise<{
   domain: string;
   ipAddress: string;
@@ -179,12 +237,21 @@ async function getSiteInfo(url: string): Promise<{
   };
 }
 
+/**
+ * Checks if a URL has been warned about
+ * @param url - URL to check
+ * @returns True if the URL has been warned about, false otherwise
+ */
 async function wasWarningShown(url: string): Promise<boolean> {
   const result = await chrome.storage.local.get('warnedUrls');
   const warnedUrls = (result.warnedUrls as WarnedUrls) || {};
   return !!warnedUrls[url];
 }
 
+/**
+ * Marks a URL as warned
+ * @param url - URL to mark as warned
+ */
 async function markUrlAsWarned(url: string): Promise<void> {
   const result = await chrome.storage.local.get('warnedUrls');
   const warnedUrls = (result.warnedUrls as WarnedUrls) || {};
@@ -192,6 +259,12 @@ async function markUrlAsWarned(url: string): Promise<void> {
   await chrome.storage.local.set({ warnedUrls });
 }
 
+/**
+ * Checks a URL and sends the result to the popup
+ * @param url - URL to check
+ * @param tabId - ID of the tab to check (optional)
+ * @returns CheckResult object or null if the URL is forbidden
+ */
 async function checkUrl(url: string, tabId?: number): Promise<CheckResult | null> {
   try {
     // Reset icon color to default blue when starting a new check
@@ -231,7 +304,6 @@ async function checkUrl(url: string, tabId?: number): Promise<CheckResult | null
     const threats: string[] = [];
     const detectionSources: string[] = [];
 
-    // Lower the ML threshold to be more sensitive
     if (mlScore > 0.3) {
       threats.push(`ML Model detected suspicious patterns (${Math.round(mlScore * 100)}% confidence)`);
       detectionSources.push('Machine Learning Model');
@@ -335,6 +407,13 @@ async function checkUrl(url: string, tabId?: number): Promise<CheckResult | null
 // Track URLs that are currently being checked to avoid duplicate checks
 const urlsBeingChecked = new Set<string>();
 
+/**
+ * Handles messages from the content script
+ * @param message - The message from the content script
+ * @param sender - The sender of the message
+ * @param sendResponse - The response to send back to the sender
+ * @returns Whether the message was handled
+ */
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === 'WARNING_DECISION') {
     const { url, allow } = message;
@@ -373,6 +452,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 });
 
+/**
+ * Listener for URL navigation events
+ * @param details - The details of the navigation event
+ * @returns 
+ */
 chrome.webNavigation.onBeforeNavigate.addListener(async details => {
   if (details.frameId !== 0) return;
   if (isForbiddenUrl(details.url)) return;
@@ -390,6 +474,13 @@ chrome.webNavigation.onBeforeNavigate.addListener(async details => {
   }
 });
 
+/**
+ * Listener for when a tab's URL changes
+ * @param tabId - The ID of the tab
+ * @param changeInfo - Information about the change
+ * @param tab - The tab that changed
+ * @returns 
+ */
 chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
   if (changeInfo.status === 'complete' && tab.url) {
     if (isForbiddenUrl(tab.url)) {
@@ -419,6 +510,11 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
   }
 });
 
+/**
+ * Listener for when a tab is activated
+ * @param activeInfo - Information about the active tab
+ * @returns 
+ */
 chrome.tabs.onActivated.addListener(async activeInfo => {
   const { autoScan } = await chrome.storage.sync.get('autoScan');
   if (!autoScan) return;
@@ -453,6 +549,11 @@ interface SafePreviewWindow {
 
 let activePreviewWindows: SafePreviewWindow[] = [];
 
+/**
+ * Opens a hidden safe preview tab for the given URL
+ * @param url - URL to open in the safe preview tab
+ * @returns The SafePreviewWindow object representing the opened tab
+ */
 async function openSafePreview(url: string): Promise<SafePreviewWindow> {
   console.log('[DEBUG] Opening hidden safe preview for URL:', url);
   
@@ -509,7 +610,10 @@ async function openSafePreview(url: string): Promise<SafePreviewWindow> {
 }
 }
 
-// Clean up preview window
+/**
+ * Cleans up a preview window
+ * @param windowId - ID of the window to clean up
+ */
 async function cleanupPreviewWindow(windowId: number) {
   const index = activePreviewWindows.findIndex(pw => pw.windowId === windowId);
   if (index !== -1) {
@@ -524,10 +628,20 @@ async function cleanupPreviewWindow(windowId: number) {
   }
 }
 
+/**
+ * Listener for when a window is removed
+ * @param windowId - ID of the window that was removed
+ */
 chrome.windows.onRemoved.addListener((windowId) => {
   cleanupPreviewWindow(windowId);
 });
 
+/**
+ * Listener for incoming messages from the content script
+ * @param message - The message sent from the content script
+ * @param sender - The sender of the message
+ * @param sendResponse - Function to send a response back to the sender
+ */
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === 'UPDATE_AUTO_SCAN') {
     (async () => {

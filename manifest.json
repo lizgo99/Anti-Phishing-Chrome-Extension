@@ -9,11 +9,7 @@
     "scripting",
     "webNavigation",
     "windows",
-    "downloads",
-    "activeTab",
-    "notifications",
-    "webRequest",
-    "declarativeNetRequest"
+    "activeTab"
   ],
   "host_permissions": [
     "<all_urls>",
@@ -21,7 +17,6 @@
     "https://*/*",
     "https://safebrowsing.googleapis.com/*"
   ],
-  "incognito": "spanning",
   "action": {
     "default_popup": "popup.html",
     "default_icon": {

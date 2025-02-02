@@ -1,8 +1,18 @@
 /*
  * popup.tsx
- * This component represents the main UI of the extension popup.
- * It provides URL scanning functionality and displays risk assessment results
- * with a clean, responsive interface that supports both light and dark modes.
+ * 
+ * This component represents the main UI of the Chrome extension popup that provides
+ * phishing detection and URL safety analysis functionality. It offers a modern,
+ * responsive interface with support for both light and dark modes.
+ * 
+ * Key Features:
+ * - Real-time URL scanning and risk assessment with ML-based threat detection
+ * - Interactive risk score visualization with color-coded indicators
+ * - Comprehensive site information display and analysis
+ * - Theme customization (light/dark mode)
+ * - Auto-scan configuration for automated security checks
+ * - Daily phishing awareness facts for user education
+ * - Chrome API integration (storage, messaging) for persistent settings
  */
 
 "use client"
@@ -22,17 +32,31 @@ import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
 import phishingFacts from '../../phishingFacts.json'
 
+/**
+ * Interface representing the result of a URL scan including risk assessment and site details
+ */
 interface ScanResult {
+  /** The URL that was scanned */
   url: string;
+  /** Numerical risk score from 0-100 */
   riskScore: number;
+  /** Textual representation of risk level (Low/Medium/High Risk) */
   riskLevel: string;
+  /** Array of identified security threats */
   threats: string[];
+  /** Timestamp of when the scan was performed */
   lastScanned: string;
+  /** Boolean indicating if the site uses secure protocols */
   isSecure: boolean;
+  /** Optional machine learning model prediction score */
   mlPredictionScore?: number;
+  /** Sources that contributed to threat detection */
   detectionSources: string[];
+  /** Key features that influenced the risk assessment with their weights */
   significantFeatures?: { [key: string]: number };
+  /** Human-readable descriptions of the significant features */
   featureDescriptions?: { [key: string]: string };
+  /** Detailed information about the scanned site */
   siteInfo?: {
     domain: string;
     ipAddress: string;
@@ -44,11 +68,25 @@ interface ScanResult {
   };
 }
 
+/**
+ * Interface for messages received from the background script
+ */
 interface CheckResult {
+  /** Message type identifier */
   type: 'URL_CHECK_RESULT';
+  /** Scan result data */
   data: ScanResult;
 }
 
+/**
+ * Main Popup component for the Anti-Phishing Chrome Extension
+ * 
+ * This component provides the user interface for URL scanning and phishing detection.
+ * It manages state for the scanning process, theme preferences, and displays
+ * comprehensive security information about scanned URLs.
+ * 
+ * @returns React component that renders the extension popup UI
+ */
 export default function Popup() {
   // State management for the component
   const [url, setUrl] = useState("")

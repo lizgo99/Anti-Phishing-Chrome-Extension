@@ -1,3 +1,18 @@
+/*
+ * WarningPage.tsx
+ * 
+ * This component renders a full-screen warning overlay when a potentially dangerous
+ * website is detected. It provides users with detailed risk information and
+ * options to either proceed or return to safety.
+ * 
+ * Key Features:
+ * - Full-screen warning overlay with blur effect
+ * - Visual risk score indicator with progress bar
+ * - Detailed threat information display
+ * - Safe navigation controls (go back/continue)
+ * - Chrome messaging integration for user decisions
+ */
+
 import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { AlertTriangle, ArrowLeft, ExternalLink } from 'lucide-react';
@@ -5,13 +20,38 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 
+/**
+ * Props interface for the WarningPage component
+ */
 interface WarningPageProps {
+  /** The potentially dangerous URL that triggered the warning */
   url: string;
+  /** Numerical risk assessment score (0-100) */
   riskScore: number;
+  /** Array of identified security threats */
   threats: string[];
 }
 
+/**
+ * WarningPage Component
+ * 
+ * Displays a full-screen warning when a potentially dangerous website is detected.
+ * Provides users with risk information and navigation options.
+ * 
+ * Features:
+ * - Displays the suspicious URL and its risk score
+ * - Lists detected security threats
+ * - Provides options to go back (recommended) or continue
+ * - Integrates with Chrome's messaging system for navigation control
+ * 
+ * @param props - {@link WarningPageProps}
+ * @returns React component that renders the warning overlay
+ */
 const WarningPage: React.FC<WarningPageProps> = ({ url, riskScore, threats }) => {
+  /**
+   * Handles the user's decision to continue to the website despite warnings
+   * Sends a message to the background script with the user's decision
+   */
   const handleContinue = async () => {
     try {
       await chrome.runtime.sendMessage({
@@ -24,6 +64,11 @@ const WarningPage: React.FC<WarningPageProps> = ({ url, riskScore, threats }) =>
     }
   };
 
+  /**
+   * Handles the user's decision to go back to safety
+   * Disables the button to prevent multiple clicks and sends the decision
+   * to the background script
+   */
   const handleGoBack = async () => {
     try {
       console.log('Handling go back');
@@ -100,7 +145,11 @@ const WarningPage: React.FC<WarningPageProps> = ({ url, riskScore, threats }) =>
   );
 };
 
-// Function to initialize the warning page
+/**
+ * Initializes the warning page by creating a React root and rendering the component.
+ * 
+ * @param props - Configuration props for the WarningPage component
+ */
 function initWarningPage(props: WarningPageProps) {
   const container = document.getElementById('anti-phish-warning');
   if (container) {
