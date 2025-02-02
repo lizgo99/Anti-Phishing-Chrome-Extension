@@ -8,7 +8,7 @@
 "use client"
 
 import React, { useState, useEffect } from "react"
-import { AlertTriangle, Lock, Settings, Shield, Info, ExternalLink, Moon, Sun } from 'lucide-react'
+import { AlertTriangle, Lock, Settings, Shield, Info, ExternalLink, Moon, Sun, Flag } from 'lucide-react'
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent } from "@/components/ui/card"
@@ -64,7 +64,6 @@ export default function Popup() {
   const [loading, setLoading] = useState(false);
   const [showInfoBox, setShowInfoBox] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-  const [showFactBox, setShowFactBox] = useState(false);
   const [currentFact, setCurrentFact] = useState<string>("");
   const [currentFactId, setCurrentFactId] = useState<number>(1);
 
@@ -217,7 +216,6 @@ export default function Popup() {
           type: 'OPEN_SAFE_PREVIEW',
           data: { url }
         });
-        // Do not call CHECK_URL here.
       } else {
         // For the active tab URL, do a normal scan.
         const response = await chrome.runtime.sendMessage({
@@ -317,6 +315,10 @@ export default function Popup() {
     localStorage.setItem('isDarkMode', JSON.stringify(newTheme));
   };
 
+  const handleReportToGoogle = () => {
+    window.open('https://safebrowsing.google.com/safebrowsing/report_phish/', '_blank');
+  };
+
   return (
     // Main container with dynamic theme colors
     <div className={`w-96 p-4 transition-colors duration-300 ${colors.bg} ${colors.text} ${isDarkMode ? 'dark' : ''}`}>
@@ -378,13 +380,14 @@ export default function Popup() {
           <RiskScoreCircle />
           {/* Icons and Text (now as buttons) */}
           <div className="flex flex-col space-y-2 pt-2 -ml-2">
-            {/* Declare as safe button */}
+            {/* Report button */}
             <Button
               variant="ghost"
+              onClick={handleReportToGoogle}
               className={`flex items-center space-x-2 ${isDarkMode ? 'hover:bg-[#522C5D]/30' : 'hover:bg-[#AAB7B7]/20'} transition-colors duration-200 rounded-lg py-1.5 px-2 w-full justify-start`}
             >
-              <Shield className={`h-6 w-6 ${isDarkMode ? 'text-[#CCBDD6]' : 'text-[#2E4156]'} flex-shrink-0`} />
-              <span className={`text-sm ${colors.text} font-medium`}>Declare As Safe</span>
+              <Flag className={`h-6 w-6 ${isDarkMode ? 'text-[#CCBDD6]' : 'text-[#2E4156]'} flex-shrink-0`} />
+              <span className={`text-sm ${colors.text} font-medium`}>Report this Site</span>
             </Button>
             {/* Site Information button */}
             <Button
@@ -395,10 +398,10 @@ export default function Popup() {
               <Info className={`h-6 w-6 ${isDarkMode ? 'text-[#CCBDD6]' : 'text-[#2E4156]'} flex-shrink-0`} />
               <span className={`text-sm ${colors.text} font-medium`}>Site Information</span>
             </Button>
-            {/* Learn about phishing button */}
+            {/* Learn about Phishing button */}
             <Button
               variant="ghost"
-              onClick={() => setShowFactBox(!showFactBox)}
+              onClick={() => window.open("https://www.ncsc.gov.uk/collection/phishing-scams", "_blank")}
               className={`flex items-center space-x-2 ${isDarkMode ? 'hover:bg-[#522C5D]/30' : 'hover:bg-[#AAB7B7]/20'} transition-colors duration-200 rounded-lg py-1.5 px-2 w-full justify-start`}
             >
               <ExternalLink className={`h-6 w-6 ${isDarkMode ? 'text-[#CCBDD6]' : 'text-[#2E4156]'} flex-shrink-0`} />
@@ -488,21 +491,16 @@ export default function Popup() {
         )}
 
         {/* Fact Box */}
-        {showFactBox && (
-          <Card className={`shadow-md ${colors.border} ${isDarkMode ? 'bg-gray-800' : 'bg-white'}`}>
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between mb-4">
-                <span className={`text-sm font-medium ${colors.text}`}>Fact of the Day</span>
-                {/* <span className={`text-xs ${isDarkMode ? 'text-[#CCBDD6]' : 'text-gray-600'}`}>
-                  Fact #{currentFactId}
-                </span> */}
-              </div>
-              <p className={`text-sm ${isDarkMode ? 'text-[#CCBDD6]' : 'text-gray-600'} whitespace-pre-wrap`}>
-                {currentFact || "Loading fact..."}
-              </p>
-            </CardContent>
-          </Card>
-        )}
+        <Card className={`shadow-md ${colors.border} ${isDarkMode ? 'bg-gray-800' : 'bg-white'}`}>
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between mb-4">
+              <span className={`text-sm font-medium ${colors.text}`}>Fact of the Day</span>
+            </div>
+            <p className={`text-sm ${isDarkMode ? 'text-[#CCBDD6]' : 'text-gray-600'} whitespace-pre-wrap`}>
+              {currentFact || "Loading fact..."}
+            </p>
+          </CardContent>
+        </Card>
 
         {/* Settings */}
         {showSettings && (
@@ -517,14 +515,6 @@ export default function Popup() {
                     checked={autoScan}
                     onCheckedChange={handleAutoScanToggle}
                   />
-                </div>
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="notifications" className={`${colors.text}`}>Enable notifications</Label>
-                  <Switch id="notifications" />
-                </div>
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="data-collection" className={`${colors.text}`}>Allow anonymous data collection</Label>
-                  <Switch id="data-collection" />
                 </div>
               </div>
             </CardContent>

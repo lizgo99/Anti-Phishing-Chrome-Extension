@@ -1,16 +1,17 @@
 const path = require('path');
 const CopyPlugin = require('copy-webpack-plugin');
 const TerserPlugin = require('terser-webpack-plugin');
+const Dotenv = require('dotenv-webpack');
 
 module.exports = {
-  // mode: 'development',
   mode: 'production',
   // devtool: 'cheap-module-source-map',
   devtool: process.env.NODE_ENV === 'development' ? 'cheap-module-source-map' : false,
   entry: {
     popup: './src/popup.tsx',
     background: './src/background.ts',
-    content: './src/content.ts'
+    content: './src/content.ts',
+    warningPage: './src/components/WarningPage.tsx'
   },
   output: {
     filename: '[name].js',
@@ -36,7 +37,12 @@ module.exports = {
     maxAssetSize: 1024 * 1024,
     hints: 'warning'
   },
-
+  resolve: {
+    extensions: ['.tsx', '.ts', '.js'],
+    alias: {
+      '@': path.resolve(__dirname, 'src'),
+    },
+  },
   module: {
     rules: [
       {
@@ -70,18 +76,17 @@ module.exports = {
       },
     ],
   },
-  resolve: {
-    extensions: ['.tsx', '.ts', '.js'],
-    alias: {
-      '@': path.resolve(__dirname, 'src'),
-    }
-  },
   plugins: [
+    new Dotenv({
+      systemvars: true, // Load system environment variables as well
+      defaults: true // Load '.env.defaults' as the default values if empty
+    }),
     new CopyPlugin({
       patterns: [
         { from: "public", to: "." },
         { from: "manifest.json", to: "." },
         { from: "popup.html", to: "." },
+        { from: 'warningPage.html' },
       ],
     }),
   ],

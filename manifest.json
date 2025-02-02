@@ -12,7 +12,8 @@
     "downloads",
     "activeTab",
     "notifications",
-    "webRequest"
+    "webRequest",
+    "declarativeNetRequest"
   ],
   "host_permissions": [
     "<all_urls>",
@@ -42,7 +43,7 @@
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
-      "js": ["content.js"]
+      "js": ["content.js", "warningPage.js"]
     }
   ],
   "web_accessible_resources": [{
@@ -50,7 +51,9 @@
       "model/*",
       "icon16.png",
       "icon48.png",
-      "icon128.png"
+      "icon128.png",
+      "warningPage.js",
+      "warningPage.html"
     ],
     "matches": ["<all_urls>"]
   }],
