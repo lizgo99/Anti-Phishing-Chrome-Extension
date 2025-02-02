@@ -26,7 +26,7 @@ AntiPhish is a security-focused Chrome extension that uses machine learning to p
 
 ## Setup Instructions
 
-1. Clone this repository
+1. Clone this repository / download zip file
 
 2. Install dependencies:
    ```bash
@@ -43,6 +43,11 @@ AntiPhish is a security-focused Chrome extension that uses machine learning to p
    - Enable "Developer mode"
    - Click "Load unpacked"
    - Select the `dist` folder from this project
+
+5. Pin the extension to the browser's toolbar
+   - Open Chrome and go to `chrome://extensions/`
+   - Click the three-dot menu next to the extension
+   - Select "Pin to Toolbar"
 
 ## Security Note
 
